@@ -78,7 +78,7 @@ pub fn note(message: &str) {
     gen::note(message)
 }
 
-/// Reject the current test input and signal Hegel to try different data.
+/// Assume a condition is true. If false, reject the current test input.
 ///
 /// This should be called when generated data doesn't meet preconditions
 /// that can't be expressed in the schema (e.g., complex filters).
@@ -87,19 +87,20 @@ pub fn note(message: &str) {
 ///
 /// - In standalone mode: exits the process with `HEGEL_REJECT_CODE`
 /// - In embedded mode: panics with a special marker that the SDK catches
-pub fn reject(message: &str) -> ! {
-    match current_mode() {
-        HegelMode::Standalone => {
-            let code: i32 = std::env::var("HEGEL_REJECT_CODE")
-                .expect("HEGEL_REJECT_CODE environment variable not set")
-                .parse()
-                .expect("HEGEL_REJECT_CODE must be a valid integer");
+pub fn assume(condition: bool) {
+    if !condition {
+        match current_mode() {
+            HegelMode::Standalone => {
+                let code: i32 = std::env::var("HEGEL_REJECT_CODE")
+                    .expect("HEGEL_REJECT_CODE environment variable not set")
+                    .parse()
+                    .expect("HEGEL_REJECT_CODE must be a valid integer");
 
-            eprintln!("REJECT: {}", message);
-            std::process::exit(code);
-        }
-        HegelMode::Embedded => {
-            panic!("HEGEL_REJECT: {}", message);
+                std::process::exit(code);
+            }
+            HegelMode::Embedded => {
+                panic!("HEGEL_REJECT");
+            }
         }
     }
 }

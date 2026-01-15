@@ -279,17 +279,15 @@ let gen = gen::fixed_dicts()
 let value: Value = gen.generate();
 ```
 
-### Rejecting Invalid Inputs
+### Assumptions
 
-Use `reject()` when generated data doesn't meet preconditions:
+Use `assume()` when generated data doesn't meet preconditions:
 
 ```rust
-use hegel::reject;
+use hegel::assume;
 
 let person = person_gen.generate();
-if person.age < 18 {
-    reject("Person must be an adult");
-}
+assume(person.age >= 18);
 ```
 
 This tells Hegel to try different input data rather than counting as a test failure.
@@ -297,7 +295,7 @@ This tells Hegel to try different input data rather than counting as a test fail
 ## Environment Variables
 
 - `HEGEL_SOCKET` - Path to Unix socket (set by hegel)
-- `HEGEL_REJECT_CODE` - Exit code for `reject()` calls (set by hegel)
+- `HEGEL_REJECT_CODE` - Exit code for `assume(false)` calls (set by hegel)
 - `HEGEL_DEBUG` - Enable debug logging of requests/responses
 
 ## Complete Example
@@ -305,7 +303,7 @@ This tells Hegel to try different input data rather than counting as a test fail
 ```rust
 use hegel::gen::{self, Generate};
 use hegel::Generate as DeriveGenerate;
-use hegel::reject;
+use hegel::assume;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -349,9 +347,7 @@ fn test_order_total() {
 
     let order: Order = gen.generate();
 
-    if order.total < 0.0 {
-        reject("Order total cannot be negative");
-    }
+    assume(order.total >= 0.0);
 
     // Test logic...
 }

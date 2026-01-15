@@ -208,9 +208,7 @@ fn substring_is_contained() {
     hegel::hegel(
         || {
             let s = gen::text().with_min_size(10).with_max_size(100).generate();
-            if s.len() < 10 {
-                hegel::reject("String too short");
-            }
+            hegel::assume(s.len() >= 10);
 
             let start = gen::integers::<usize>()
                 .with_min(0)
@@ -310,9 +308,7 @@ fn absolute_value_is_non_negative() {
         || {
             let x = gen::integers::<i32>().generate();
             // Avoid i32::MIN which has no positive counterpart
-            if x == i32::MIN {
-                hegel::reject("Skipping i32::MIN");
-            }
+            hegel::assume(x != i32::MIN);
             note(&format!("Testing abs({})", x));
 
             assert!(x.abs() >= 0, "Absolute value should be non-negative");

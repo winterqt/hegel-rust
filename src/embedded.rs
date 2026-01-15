@@ -66,8 +66,8 @@ impl HegelOptions {
     }
 }
 
-/// Special prefix used to identify reject panics.
-const REJECT_PREFIX: &str = "HEGEL_REJECT:";
+/// Special marker used to identify assume(false) panics.
+const REJECT_MARKER: &str = "HEGEL_REJECT";
 
 /// Run property-based tests using Hegel in embedded mode with default options.
 ///
@@ -247,13 +247,12 @@ fn handle_connection<F: Fn()>(stream: UnixStream, test_fn: Arc<F>, debug: bool) 
     let result_msg = match result {
         Ok(()) => json!({"type": "test_result", "result": "pass"}),
         Err(e) => {
-            // Check if this is a reject panic
+            // Check if this is an assume(false) panic
             let msg = panic_message(&e);
-            if msg.starts_with(REJECT_PREFIX) {
+            if msg == REJECT_MARKER {
                 json!({
                     "type": "test_result",
-                    "result": "reject",
-                    "message": msg.strip_prefix(REJECT_PREFIX).unwrap_or(&msg).trim()
+                    "result": "reject"
                 })
             } else {
                 json!({

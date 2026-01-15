@@ -236,23 +236,16 @@ fn send_request(command: &str, payload: &Value) -> Value {
 
         let parsed: Value = match serde_json::from_str(&response) {
             Ok(v) => v,
-            Err(e) => {
-                crate::reject(&format!("Failed to parse Hegel response: {}", e));
+            Err(_) => {
+                crate::assume(false);
+                unreachable!()
             }
         };
 
         // Verify request ID matches
         let response_id = parsed.get("id").and_then(|v| v.as_u64());
-        if response_id != Some(request_id) {
-            crate::reject(&format!(
-                "Response ID mismatch: expected {}, got {:?}",
-                request_id, response_id
-            ));
-        }
-
-        if let Some(error) = parsed.get("error") {
-            crate::reject(&format!("Hegel error: {}", error));
-        }
+        crate::assume(response_id == Some(request_id));
+        crate::assume(parsed.get("error").is_none());
 
         parsed.get("result").cloned().unwrap_or(Value::Null)
     })
@@ -283,8 +276,9 @@ pub fn generate_from_schema<T: serde::de::DeserializeOwned>(schema: &Value) -> T
         eprintln!("Generated: {}", result);
     }
 
-    serde_json::from_value(result.clone()).unwrap_or_else(|e| {
-        crate::reject(&format!("Failed to deserialize value {:?}: {}", result, e))
+    serde_json::from_value(result.clone()).unwrap_or_else(|_| {
+        crate::assume(false);
+        unreachable!()
     })
 }
 
@@ -422,7 +416,7 @@ pub trait Generate<T>: Send + Sync {
 
     /// Filter generated values using a predicate.
     ///
-    /// If `max_attempts` consecutive values fail the predicate, calls `reject()`.
+    /// If `max_attempts` consecutive values fail the predicate, calls `assume(false)`.
     fn filter<F>(self, predicate: F, max_attempts: usize) -> Filtered<T, F, Self>
     where
         Self: Sized,
@@ -603,10 +597,8 @@ where
                 return value;
             }
         }
-        crate::reject(&format!(
-            "Filter predicate failed {} consecutive times",
-            self.max_attempts
-        ))
+        crate::assume(false);
+        unreachable!()
     }
 
     fn schema(&self) -> Option<Value> {
@@ -1369,12 +1361,7 @@ where
                     });
                     attempts += 1;
                 }
-                if map.len() < self.min_size {
-                    crate::reject(&format!(
-                        "Failed to generate {} unique keys for hashmap after {} attempts",
-                        self.min_size, max_attempts
-                    ));
-                }
+                crate::assume(map.len() >= self.min_size);
                 map
             })
         }
@@ -1523,9 +1510,7 @@ pub struct SampledFromGenerator<T> {
 
 impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGenerator<T> {
     fn generate(&self) -> T {
-        if self.elements.is_empty() {
-            crate::reject("sampled_from called with empty collection");
-        }
+        crate::assume(!self.elements.is_empty());
 
         // Check if elements are primitive enough for enum schema
         if let Some(schema) = self.schema() {
@@ -1536,7 +1521,8 @@ impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGener
                     return elem.clone();
                 }
             }
-            crate::reject("Generated value not in sampled_from collection");
+            crate::assume(false);
+            unreachable!()
         } else {
             // Generate index and pick
             let idx_gen = integers::<usize>()
@@ -1583,9 +1569,7 @@ impl<'a, T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned
     for SampledFromSliceGenerator<'a, T>
 {
     fn generate(&self) -> T {
-        if self.elements.is_empty() {
-            crate::reject("sampled_from_slice called with empty slice");
-        }
+        crate::assume(!self.elements.is_empty());
 
         if let Some(schema) = self.schema() {
             generate_from_schema(&schema)
@@ -1641,9 +1625,7 @@ pub struct OneOfGenerator<'a, T> {
 
 impl<'a, T: serde::de::DeserializeOwned> Generate<T> for OneOfGenerator<'a, T> {
     fn generate(&self) -> T {
-        if self.generators.is_empty() {
-            crate::reject("one_of called with no generators");
-        }
+        crate::assume(!self.generators.is_empty());
 
         if let Some(schema) = self.schema() {
             generate_from_schema(&schema)

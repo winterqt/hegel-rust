@@ -182,9 +182,7 @@ fn test_from_regex() {
     let gen = gen::from_regex(r"[a-z]{3}-[0-9]{3}");
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("from_regex produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     // Basic validation - should be like "abc-123"
     test_assert!(value.len() == 7, "from_regex should produce 7-char string");
@@ -203,9 +201,7 @@ fn test_emails() {
     let gen = gen::emails();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("email produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.contains('@'), "email must contain @");
     println!("emails(): \"{}\"", value);
@@ -215,9 +211,7 @@ fn test_urls() {
     let gen = gen::urls();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("url produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.contains("://"), "url must contain ://");
     println!("urls(): \"{}\"", value);
@@ -227,9 +221,7 @@ fn test_domains() {
     let gen = gen::domains();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("domain produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.chars().count() <= 255, "domain must be <= 255 chars");
     println!("domains(): \"{}\"", value);
@@ -239,9 +231,7 @@ fn test_ip_addresses_v4() {
     let gen = gen::ip_addresses().v4();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("ipv4 produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     let parts: Vec<&str> = value.split('.').collect();
     test_assert!(parts.len() == 4, "ipv4 must have 4 octets");
@@ -252,9 +242,7 @@ fn test_ip_addresses_v6() {
     let gen = gen::ip_addresses().v6();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("ipv6 produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.contains(':'), "ipv6 must contain colons");
     println!("ip_addresses().v6(): \"{}\"", value);
@@ -264,9 +252,7 @@ fn test_ip_addresses_any() {
     let gen = gen::ip_addresses();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("ip address produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     let is_v4 = value.contains('.');
     let is_v6 = value.contains(':');
@@ -282,9 +268,7 @@ fn test_dates() {
     let gen = gen::dates();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("date produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     // ISO date: YYYY-MM-DD
     test_assert!(value.len() == 10, "date must be 10 chars (YYYY-MM-DD)");
@@ -299,9 +283,7 @@ fn test_times() {
     let gen = gen::times();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("time produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.contains(':'), "time must contain colons");
     println!("times(): \"{}\"", value);
@@ -311,9 +293,7 @@ fn test_datetimes() {
     let gen = gen::datetimes();
     let value: String = gen.generate();
 
-    if !is_ascii(&value) {
-        hegel::reject("datetime produced non-ASCII string");
-    }
+    hegel::assume(is_ascii(&value));
 
     test_assert!(value.contains('-'), "datetime must contain date part");
     test_assert!(value.contains(':'), "datetime must contain time part");
