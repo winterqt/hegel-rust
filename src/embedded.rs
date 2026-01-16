@@ -30,6 +30,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 
+/// Path to the hegel binary, determined at compile time by build.rs.
+/// This will be either a system hegel found on PATH, or one installed
+/// into the build directory's cache.
+const HEGEL_BINARY_PATH: &str = env!("HEGEL_BINARY_PATH");
+
 /// Options for embedded mode execution.
 #[derive(Debug, Clone, Default)]
 pub struct HegelOptions {
@@ -37,7 +42,7 @@ pub struct HegelOptions {
     pub test_cases: Option<u64>,
     /// Enable debug output from hegel.
     pub debug: bool,
-    /// Path to the hegel binary. Default: "hegel".
+    /// Path to the hegel binary. Default: auto-detected at compile time.
     pub hegel_path: Option<String>,
 }
 
@@ -140,7 +145,7 @@ where
         .expect("Failed to set non-blocking");
 
     // Build hegel command
-    let hegel_path = options.hegel_path.as_deref().unwrap_or("hegel");
+    let hegel_path = options.hegel_path.as_deref().unwrap_or(HEGEL_BINARY_PATH);
     let mut cmd = Command::new(hegel_path);
     cmd.arg("--client-mode")
         .arg(&socket_path)
@@ -200,6 +205,12 @@ fn handle_exit(status: ExitStatus) {
 
 /// Handle a single connection from hegel (one test case).
 fn handle_connection<F: Fn()>(stream: UnixStream, test_fn: Arc<F>, debug: bool) {
+    // Stream accepted from non-blocking listener may inherit non-blocking mode on macOS.
+    // Set it back to blocking for reliable reads.
+    stream
+        .set_nonblocking(false)
+        .expect("Failed to set stream to blocking mode");
+
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut writer = stream.try_clone().unwrap();
 
