@@ -1,0 +1,36 @@
+use hegel::gen::{self, Generate};
+use hegel::{hegel_with_options, HegelOptions};
+use hegel_conformance::{get_test_cases, write};
+use serde::{Deserialize, Serialize};
+use std::env;
+
+#[derive(Deserialize)]
+struct Params {
+    options: Vec<i32>,
+}
+
+#[derive(Serialize)]
+struct Metrics {
+    value: i32,
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: test_sampled_from '<json_params>'");
+        std::process::exit(1);
+    }
+
+    let params: Params = serde_json::from_str(&args[1]).unwrap_or_else(|e| {
+        eprintln!("Failed to parse params: {}", e);
+        std::process::exit(1);
+    });
+
+    hegel_with_options(
+        move || {
+            let value = gen::sampled_from(params.options.clone()).generate();
+            write(&Metrics { value });
+        },
+        HegelOptions::new().with_test_cases(get_test_cases()),
+    );
+}
