@@ -1,5 +1,3 @@
-//! Combinator types and generators for composing generators.
-
 use super::{
     discardable_group, generate_from_schema, group, integers, labels, request_from_schema, Generate,
 };

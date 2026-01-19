@@ -1,13 +1,7 @@
-//! Tuple generators for 2-tuples and 3-tuples.
 
 use super::{generate_from_schema, group, labels, Generate};
 use serde_json::{json, Value};
 
-// ============================================================================
-// Tuple2 Generator
-// ============================================================================
-
-/// Generator for 2-tuples.
 pub struct Tuple2Generator<G1, G2> {
     gen1: G1,
     gen2: G2,
@@ -46,7 +40,6 @@ where
     }
 }
 
-/// Generate 2-tuples.
 pub fn tuples<T1, T2, G1: Generate<T1>, G2: Generate<T2>>(
     gen1: G1,
     gen2: G2,
@@ -54,11 +47,6 @@ pub fn tuples<T1, T2, G1: Generate<T1>, G2: Generate<T2>>(
     Tuple2Generator { gen1, gen2 }
 }
 
-// ============================================================================
-// Tuple3 Generator
-// ============================================================================
-
-/// Generator for 3-tuples.
 pub struct Tuple3Generator<G1, G2, G3> {
     gen1: G1,
     gen2: G2,
@@ -102,7 +90,6 @@ where
     }
 }
 
-/// Generate 3-tuples.
 pub fn tuples3<T1, T2, T3, G1: Generate<T1>, G2: Generate<T2>, G3: Generate<T3>>(
     gen1: G1,
     gen2: G2,

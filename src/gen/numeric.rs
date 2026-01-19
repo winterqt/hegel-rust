@@ -1,15 +1,9 @@
-//! Numeric generators for integers and floating-point numbers.
 
 use super::{generate_from_schema, Generate};
 use num::{Bounded, Float as NumFloat, Integer as NumInteger};
 use serde_json::{json, Value};
 use std::marker::PhantomData;
 
-// ============================================================================
-// Integer Generator
-// ============================================================================
-
-/// Generator for integer values.
 pub struct IntegerGenerator<T> {
     min: Option<T>,
     max: Option<T>,

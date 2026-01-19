@@ -1,26 +1,18 @@
-//! String generators for text and regex-based generation.
 
 use super::{generate_from_schema, Generate};
 use serde_json::{json, Value};
 
-// ============================================================================
-// Text Generator
-// ============================================================================
-
-/// Generator for text strings.
 pub struct TextGenerator {
     min_size: usize,
     max_size: Option<usize>,
 }
 
 impl TextGenerator {
-    /// Set the minimum size (in Unicode codepoints).
     pub fn with_min_size(mut self, min: usize) -> Self {
         self.min_size = min;
         self
     }
 
-    /// Set the maximum size (in Unicode codepoints).
     pub fn with_max_size(mut self, max: usize) -> Self {
         self.max_size = Some(max);
         self
@@ -47,7 +39,6 @@ impl Generate<String> for TextGenerator {
     }
 }
 
-/// Generate text strings.
 pub fn text() -> TextGenerator {
     TextGenerator {
         min_size: 0,
@@ -55,11 +46,6 @@ pub fn text() -> TextGenerator {
     }
 }
 
-// ============================================================================
-// Regex Generator
-// ============================================================================
-
-/// Generator for strings matching a regex pattern.
 pub struct RegexGenerator {
     pattern: String,
 }
@@ -77,9 +63,6 @@ impl Generate<String> for RegexGenerator {
     }
 }
 
-/// Generate strings matching a regular expression.
-///
-/// The pattern is automatically anchored with `^` and `$` if not already present.
 pub fn from_regex(pattern: &str) -> RegexGenerator {
     let anchored = if pattern.starts_with('^') && pattern.ends_with('$') {
         pattern.to_string()

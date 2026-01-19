@@ -1,5 +1,3 @@
-//! Fixed dictionary generators for struct-like data.
-
 use super::{generate_from_schema, group, labels, BoxedGenerator, Generate};
 use serde_json::{json, Value};
 use std::marker::PhantomData;

@@ -1,15 +1,8 @@
-//! Collection generators for Vec, HashSet, and HashMap.
-
 use super::{generate_from_schema, group, integers, labels, text, Generate};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-// ============================================================================
-// Vec Generator
-// ============================================================================
-
-/// Generator for Vec values.
 pub struct VecGenerator<G> {
     pub(crate) elements: G,
     pub(crate) min_size: usize,
@@ -18,19 +11,16 @@ pub struct VecGenerator<G> {
 }
 
 impl<G> VecGenerator<G> {
-    /// Set the minimum size.
     pub fn with_min_size(mut self, min: usize) -> Self {
         self.min_size = min;
         self
     }
 
-    /// Set the maximum size.
     pub fn with_max_size(mut self, max: usize) -> Self {
         self.max_size = Some(max);
         self
     }
 
-    /// Require all elements to be unique.
     pub fn unique(mut self) -> Self {
         self.unique = true;
         self
@@ -93,11 +83,6 @@ pub fn vecs<T, G: Generate<T>>(elements: G) -> VecGenerator<G> {
     }
 }
 
-// ============================================================================
-// HashSet Generator
-// ============================================================================
-
-/// Generator for HashSet values.
 pub struct HashSetGenerator<G> {
     elements: G,
     min_size: usize,
@@ -105,13 +90,11 @@ pub struct HashSetGenerator<G> {
 }
 
 impl<G> HashSetGenerator<G> {
-    /// Set the minimum size.
     pub fn with_min_size(mut self, min: usize) -> Self {
         self.min_size = min;
         self
     }
 
-    /// Set the maximum size.
     pub fn with_max_size(mut self, max: usize) -> Self {
         self.max_size = Some(max);
         self
@@ -173,7 +156,6 @@ where
     }
 }
 
-/// Generate hash sets.
 pub fn hashsets<T, G: Generate<T>>(elements: G) -> HashSetGenerator<G> {
     HashSetGenerator {
         elements,
@@ -182,11 +164,6 @@ pub fn hashsets<T, G: Generate<T>>(elements: G) -> HashSetGenerator<G> {
     }
 }
 
-// ============================================================================
-// HashMap Generator
-// ============================================================================
-
-/// Generator for HashMap values with string keys.
 pub struct HashMapGenerator<V> {
     values: V,
     min_size: usize,
@@ -194,13 +171,11 @@ pub struct HashMapGenerator<V> {
 }
 
 impl<V> HashMapGenerator<V> {
-    /// Set the minimum size.
     pub fn with_min_size(mut self, min: usize) -> Self {
         self.min_size = min;
         self
     }
 
-    /// Set the maximum size.
     pub fn with_max_size(mut self, max: usize) -> Self {
         self.max_size = Some(max);
         self

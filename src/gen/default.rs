@@ -1,5 +1,3 @@
-//! DefaultGenerator trait for types with default generators.
-
 use super::{
     booleans, floats, integers, optional, text, vecs, BoolGenerator, FloatGenerator,
     IntegerGenerator, OptionalGenerator, TextGenerator, VecGenerator,
