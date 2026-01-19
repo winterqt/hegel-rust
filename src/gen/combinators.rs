@@ -5,11 +5,6 @@ use serde_json::{json, Value};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-// ============================================================================
-// Mapped Combinator
-// ============================================================================
-
-/// Generator that transforms values using a function.
 pub struct Mapped<T, U, F, G> {
     pub(crate) source: G,
     pub(crate) f: F,
@@ -45,11 +40,6 @@ where
 {
 }
 
-// ============================================================================
-// FlatMapped Combinator
-// ============================================================================
-
-/// Generator that uses a generated value to create another generator.
 pub struct FlatMapped<T, U, G2, F, G1> {
     pub(crate) source: G1,
     pub(crate) f: F,
@@ -89,11 +79,6 @@ where
 {
 }
 
-// ============================================================================
-// Filtered Combinator
-// ============================================================================
-
-/// Generator that filters values using a predicate.
 pub struct Filtered<T, F, G> {
     pub(crate) source: G,
     pub(crate) predicate: F,
@@ -185,11 +170,6 @@ impl<'a, T> Generate<T> for BoxedGenerator<'a, T> {
     }
 }
 
-// ============================================================================
-// SampledFrom Generators
-// ============================================================================
-
-/// Generator that samples uniformly from a fixed collection.
 pub struct SampledFromGenerator<T> {
     elements: Vec<T>,
 }
@@ -239,14 +219,12 @@ impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGener
     }
 }
 
-/// Sample uniformly from a fixed collection (owned).
 pub fn sampled_from<T: Clone + Send + Sync + serde::Serialize>(
     elements: Vec<T>,
 ) -> SampledFromGenerator<T> {
     SampledFromGenerator { elements }
 }
 
-/// Generator that samples from a borrowed slice.
 pub struct SampledFromSliceGenerator<'a, T> {
     elements: &'a [T],
 }
@@ -304,11 +282,6 @@ pub fn sampled_from_slice<
     SampledFromSliceGenerator { elements }
 }
 
-// ============================================================================
-// OneOf Generator
-// ============================================================================
-
-/// Generator that chooses from multiple generators.
 pub struct OneOfGenerator<'a, T> {
     generators: Vec<BoxedGenerator<'a, T>>,
 }
@@ -370,11 +343,6 @@ macro_rules! one_of {
     };
 }
 
-// ============================================================================
-// Optional Generator
-// ============================================================================
-
-/// Generator for optional values.
 pub struct OptionalGenerator<G> {
     inner: G,
 }
@@ -419,7 +387,6 @@ where
     }
 }
 
-/// Generate optional values (either None or Some(value)).
 pub fn optional<T, G: Generate<T>>(inner: G) -> OptionalGenerator<G> {
     OptionalGenerator { inner }
 }
