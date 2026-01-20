@@ -104,7 +104,7 @@ fn derive_struct_generate(input: &DeriveInput, data: &syn::DataStruct) -> TokenS
         .iter()
         .map(|f| f.ident.as_ref().unwrap())
         .collect();
-    
+
     let field_types: Vec<_> = fields.iter().map(|f| &f.ty).collect();
 
     // Generate the with_* method names
@@ -538,15 +538,10 @@ fn derive_enum_generate(input: &DeriveInput, data: &syn::DataEnum) -> TokenStrea
             fn schema(&self) -> Option<serde_json::Value> {
                 use hegel::gen::Generate;
 
-                let mut any_of = Vec::new();
-
-                // Add unit variant schemas
-                #(any_of.push(#unit_schema_entries);)*
-
-                // Add data variant schemas (returns None if any lacks schema)
-                #(any_of.push(#data_schema_entries);)*
-
-                Some(serde_json::json!({ "anyOf": any_of }))
+                let mut one_of = Vec::new();
+                #(one_of.push(#unit_schema_entries);)*
+                #(one_of.push(#data_schema_entries);)*
+                Some(serde_json::json!({ "one_of": one_of }))
             }
         }
     };
