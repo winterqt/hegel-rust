@@ -12,21 +12,42 @@ hegel = { git = "ssh://git@github.com/antithesishq/hegel-rust" }
 serde = { version = "1.0", features = ["derive"] }
 ```
 
+The SDK automatically installs the Hegel CLI at compile time if not already on PATH.
+
 ## Quick Start
 
 ```rust
 use hegel::gen::{self, Generate};
 
-fn main() {
-    // Generate integers in a range
-    let gen = gen::integers::<i32>().with_min(0).with_max(100);
-    let value: i32 = gen.generate();
+#[test]
+fn test_addition_commutative() {
+    hegel::hegel(|| {
+        let x = gen::integers::<i32>().generate();
+        let y = gen::integers::<i32>().generate();
+        assert_eq!(x + y, y + x);
+    });
+}
+```
 
-    // Generate vectors
-    let vec_gen = gen::vecs(gen::integers::<i32>())
-        .with_min_size(1)
-        .with_max_size(10);
-    let values: Vec<i32> = vec_gen.generate();
+Run with `cargo test`.
+
+## Configuration
+
+Use the builder pattern for more control:
+
+```rust
+use hegel::{Hegel, Verbosity};
+use hegel::gen::{self, Generate};
+
+#[test]
+fn test_with_options() {
+    Hegel::new(|| {
+        let n = gen::integers::<i32>().generate();
+        assert!(n + 0 == n);
+    })
+    .test_cases(500)
+    .verbosity(Verbosity::Verbose)
+    .run();
 }
 ```
 
@@ -53,128 +74,151 @@ pub trait Generate<T> {
 ```rust
 use hegel::gen::{self, Generate};
 
-// Unit
-let unit_gen = gen::unit();
-let _: () = unit_gen.generate();
+hegel::hegel(|| {
+    // Unit
+    let _: () = gen::unit().generate();
 
-// Booleans
-let bool_gen = gen::booleans();
-let b: bool = bool_gen.generate();
+    // Booleans
+    let b: bool = gen::booleans().generate();
 
-// Constants (with schema support)
-let const_gen = gen::just(42);
-let s_gen = gen::just("hello".to_string());
+    // Constants (with schema support)
+    let n: i32 = gen::just(42).generate();
+    let s: String = gen::just("hello".to_string()).generate();
 
-// Constants (without schema, for non-Serialize types)
-let any_gen = gen::just_any(my_value);
+    // Constants (without schema, for non-Serialize types)
+    let any = gen::just_any(my_value).generate();
+});
 ```
 
 ### Numbers
 
 ```rust
-// Integers - bounds default to type limits
-let int_gen = gen::integers::<i32>();
-let bounded = gen::integers::<i32>().with_min(0).with_max(100);
-let u8_gen = gen::integers::<u8>();  // automatically 0-255
+hegel::hegel(|| {
+    // Integers - bounds default to type limits
+    let i: i32 = gen::integers::<i32>().generate();
+    let bounded: i32 = gen::integers::<i32>().with_min(0).with_max(100).generate();
+    let byte: u8 = gen::integers::<u8>().generate();  // automatically 0-255
 
-// Floating point
-let float_gen = gen::floats::<f64>();
-let bounded_float = gen::floats::<f64>()
-    .with_min(0.0)
-    .with_max(1.0)
-    .exclude_min()  // exclusive bounds
-    .exclude_max();
+    // Floating point
+    let f: f64 = gen::floats::<f64>().generate();
+    let bounded_f: f64 = gen::floats::<f64>()
+        .with_min(0.0)
+        .with_max(1.0)
+        .exclude_min()  // exclusive bounds
+        .exclude_max()
+        .generate();
+});
 ```
 
 ### Strings
 
 ```rust
-// Text with optional length constraints
-let text_gen = gen::text();
-let bounded = gen::text().with_min_size(1).with_max_size(100);
+hegel::hegel(|| {
+    // Text with optional length constraints
+    let s: String = gen::text().generate();
+    let bounded: String = gen::text().with_min_size(1).with_max_size(100).generate();
 
-// Regex patterns (auto-anchored with ^ and $)
-let pattern = gen::from_regex(r"[a-z]{3}-[0-9]{3}");
+    // Regex patterns (auto-anchored with ^ and $)
+    let pattern: String = gen::from_regex(r"[a-z]{3}-[0-9]{3}").generate();
 
-// Format strings
-let email = gen::emails();
-let url = gen::urls();
-let domain = gen::domains().with_max_length(63);
-let ip = gen::ip_addresses();      // IPv4 or IPv6
-let ipv4 = gen::ip_addresses().v4();
-let ipv6 = gen::ip_addresses().v6();
+    // Format strings
+    let email: String = gen::emails().generate();
+    let url: String = gen::urls().generate();
+    let domain: String = gen::domains().with_max_length(63).generate();
+    let ip: String = gen::ip_addresses().generate();      // IPv4 or IPv6
+    let ipv4: String = gen::ip_addresses().v4().generate();
+    let ipv6: String = gen::ip_addresses().v6().generate();
 
-// Date/time (ISO 8601)
-let date = gen::dates();       // YYYY-MM-DD
-let time = gen::times();       // HH:MM:SS
-let datetime = gen::datetimes();
+    // Date/time (ISO 8601)
+    let date: String = gen::dates().generate();       // YYYY-MM-DD
+    let time: String = gen::times().generate();       // HH:MM:SS
+    let datetime: String = gen::datetimes().generate();
+});
 ```
 
 ### Collections
 
 ```rust
-// Vectors
-let vec_gen = gen::vecs(gen::integers::<i32>());
-let bounded = gen::vecs(gen::integers::<i32>())
-    .with_min_size(1)
-    .with_max_size(10)
-    .unique();  // no duplicates
+hegel::hegel(|| {
+    // Vectors
+    let vec: Vec<i32> = gen::vecs(gen::integers::<i32>()).generate();
+    let bounded: Vec<i32> = gen::vecs(gen::integers::<i32>())
+        .with_min_size(1)
+        .with_max_size(10)
+        .unique()  // no duplicates
+        .generate();
 
-// HashSets
-let set_gen = gen::hashsets(gen::integers::<i32>())
-    .with_min_size(1)
-    .with_max_size(5);
+    // HashSets
+    let set: HashSet<i32> = gen::hashsets(gen::integers::<i32>())
+        .with_min_size(1)
+        .with_max_size(5)
+        .generate();
 
-// HashMaps (string keys only, JSON limitation)
-let map_gen = gen::hashmaps(gen::integers::<i32>())
-    .with_min_size(1)
-    .with_max_size(3);
+    // HashMaps (string keys only, JSON limitation)
+    let map: HashMap<String, i32> = gen::hashmaps(gen::integers::<i32>())
+        .with_min_size(1)
+        .with_max_size(3)
+        .generate();
+});
 ```
 
 ### Tuples
 
 ```rust
-let pair = gen::tuples(gen::integers::<i32>(), gen::text());
-let triple = gen::tuples3(gen::booleans(), gen::integers::<i32>(), gen::floats::<f64>());
+hegel::hegel(|| {
+    let pair: (i32, String) = gen::tuples(gen::integers::<i32>(), gen::text()).generate();
+    let triple: (bool, i32, f64) = gen::tuples3(
+        gen::booleans(),
+        gen::integers::<i32>(),
+        gen::floats::<f64>()
+    ).generate();
+});
 ```
 
 ### Combinators
 
 ```rust
-// Sample from fixed set
-let color = gen::sampled_from(vec!["red", "green", "blue"]);
-let nums = gen::sampled_from(vec![1, 2, 3, 4, 5]);
+hegel::hegel(|| {
+    // Sample from fixed set
+    let color: &str = gen::sampled_from(vec!["red", "green", "blue"]).generate();
+    let num: i32 = gen::sampled_from(vec![1, 2, 3, 4, 5]).generate();
 
-// Choose from multiple generators
-let range = hegel::one_of!(
-    gen::integers::<i32>().with_min(0).with_max(10),
-    gen::integers::<i32>().with_min(100).with_max(110),
-);
+    // Choose from multiple generators
+    let n: i32 = hegel::one_of!(
+        gen::integers::<i32>().with_min(0).with_max(10),
+        gen::integers::<i32>().with_min(100).with_max(110),
+    ).generate();
 
-// Optional values
-let opt = gen::optional(gen::integers::<i32>());
+    // Optional values
+    let opt: Option<i32> = gen::optional(gen::integers::<i32>()).generate();
+});
 ```
 
 ### map, flat_map, filter
 
 ```rust
-// Transform values
-let squared = gen::integers::<i32>()
-    .with_min(1)
-    .with_max(10)
-    .map(|x| x * x);
+hegel::hegel(|| {
+    // Transform values
+    let squared: i32 = gen::integers::<i32>()
+        .with_min(1)
+        .with_max(10)
+        .map(|x| x * x)
+        .generate();
 
-// Filter values (rejects after max_attempts failures)
-let even = gen::integers::<i32>()
-    .with_min(0)
-    .with_max(100)
-    .filter(|x| x % 2 == 0, 10);
+    // Filter values (rejects after max_attempts failures)
+    let even: i32 = gen::integers::<i32>()
+        .with_min(0)
+        .with_max(100)
+        .filter(|x| x % 2 == 0, 10)
+        .generate();
 
-// Dependent generation
-let sized_string = gen::integers::<usize>()
-    .with_min(1)
-    .with_max(10)
-    .flat_map(|len| gen::text().with_min_size(len).with_max_size(len));
+    // Dependent generation
+    let sized_string: String = gen::integers::<usize>()
+        .with_min(1)
+        .with_max(10)
+        .flat_map(|len| gen::text().with_min_size(len).with_max_size(len))
+        .generate();
+});
 ```
 
 ### Struct Generation with Derive Macro
@@ -192,13 +236,17 @@ struct Person {
     age: u32,
 }
 
-fn main() {
-    // Use generated PersonGenerator with builder methods
-    let gen = PersonGenerator::new()
-        .with_name(gen::text().with_min_size(1).with_max_size(50))
-        .with_age(gen::integers::<u32>().with_min(0).with_max(120));
+#[test]
+fn test_person() {
+    hegel::hegel(|| {
+        // Use generated PersonGenerator with builder methods
+        let gen = PersonGenerator::new()
+            .with_name(gen::text().with_min_size(1).with_max_size(50))
+            .with_age(gen::integers::<u32>().with_min(0).with_max(120));
 
-    let person: Person = gen.generate();
+        let person: Person = gen.generate();
+        assert!(person.age <= 120);
+    });
 }
 ```
 
@@ -218,12 +266,15 @@ derive_generator!(Point {
     y: f64,
 });
 
-fn main() {
-    let gen = PointGenerator::new()
-        .with_x(gen::floats::<f64>().with_min(-100.0).with_max(100.0))
-        .with_y(gen::floats::<f64>().with_min(-100.0).with_max(100.0));
+#[test]
+fn test_point() {
+    hegel::hegel(|| {
+        let gen = PointGenerator::new()
+            .with_x(gen::floats::<f64>().with_min(-100.0).with_max(100.0))
+            .with_y(gen::floats::<f64>().with_min(-100.0).with_max(100.0));
 
-    let point: Point = gen.generate();
+        let point: Point = gen.generate();
+    });
 }
 ```
 
@@ -234,13 +285,15 @@ Generate JSON objects with specific fields:
 ```rust
 use serde_json::Value;
 
-let gen = gen::fixed_dicts()
-    .field("name", gen::text().with_min_size(1))
-    .field("age", gen::integers::<u32>())
-    .field("active", gen::booleans())
-    .build();
+hegel::hegel(|| {
+    let gen = gen::fixed_dicts()
+        .field("name", gen::text().with_min_size(1))
+        .field("age", gen::integers::<u32>())
+        .field("active", gen::booleans())
+        .build();
 
-let value: Value = gen.generate();
+    let value: Value = gen.generate();
+});
 ```
 
 ### Assumptions
@@ -250,17 +303,19 @@ Use `assume()` when generated data doesn't meet preconditions:
 ```rust
 use hegel::assume;
 
-let person = person_gen.generate();
-assume(person.age >= 18);
+hegel::hegel(|| {
+    let person = person_gen.generate();
+    assume(person.age >= 18);
+
+    // Test logic for adults only...
+});
 ```
 
 This tells Hegel to try different input data rather than counting as a test failure.
 
-## Environment Variables
+## Debugging
 
-- `HEGEL_SOCKET` - Path to Unix socket (set by hegel)
-- `HEGEL_REJECT_CODE` - Exit code for `assume(false)` calls (set by hegel)
-- `HEGEL_DEBUG` - Enable debug logging of requests/responses
+Set `HEGEL_DEBUG=1` to enable debug logging of requests/responses.
 
 ## Complete Example
 
@@ -269,7 +324,6 @@ use hegel::gen::{self, Generate};
 use hegel::Generate as DeriveGenerate;
 use hegel::assume;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(DeriveGenerate, Debug, Serialize, Deserialize)]
 struct Order {
@@ -278,42 +332,34 @@ struct Order {
     total: f64,
 }
 
-// Test registry pattern - let Hegel explore different tests
-fn main() {
-    let tests: HashMap<&str, fn()> = [
-        ("test_order_creation", test_order_creation as fn()),
-        ("test_order_total", test_order_total),
-    ].into_iter().collect();
-
-    let test_names: Vec<&str> = tests.keys().copied().collect();
-    let selected = gen::sampled_from(test_names).generate();
-
-    println!("Running: {}", selected);
-    tests[selected]();
-    println!("PASSED: {}", selected);
-}
-
+#[test]
 fn test_order_creation() {
-    let gen = OrderGenerator::new()
-        .with_id(gen::from_regex(r"ORD-[0-9]{6}"))
-        .with_items(gen::vecs(gen::text().with_min_size(1)).with_min_size(1))
-        .with_total(gen::floats::<f64>().with_min(0.0).with_max(10000.0));
+    hegel::Hegel::new(|| {
+        let gen = OrderGenerator::new()
+            .with_id(gen::from_regex(r"ORD-[0-9]{6}"))
+            .with_items(gen::vecs(gen::text().with_min_size(1)).with_min_size(1))
+            .with_total(gen::floats::<f64>().with_min(0.0).with_max(10000.0));
 
-    let order: Order = gen.generate();
+        let order: Order = gen.generate();
 
-    assert!(order.id.starts_with("ORD-"));
-    assert!(!order.items.is_empty());
+        assert!(order.id.starts_with("ORD-"));
+        assert!(!order.items.is_empty());
+    })
+    .test_cases(500)
+    .run();
 }
 
+#[test]
 fn test_order_total() {
-    let gen = OrderGenerator::new()
-        .with_total(gen::floats::<f64>().with_min(0.0));
+    hegel::hegel(|| {
+        let gen = OrderGenerator::new()
+            .with_total(gen::floats::<f64>().with_min(0.0));
 
-    let order: Order = gen.generate();
+        let order: Order = gen.generate();
+        assume(order.total >= 0.0);
 
-    assume(order.total >= 0.0);
-
-    // Test logic...
+        // Test logic...
+    });
 }
 ```
 
