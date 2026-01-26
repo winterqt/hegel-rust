@@ -204,10 +204,7 @@ where
                 while map.len() < len && attempts < max_attempts {
                     group(labels::MAP_ENTRY, || {
                         let key = key_gen.generate();
-                        if !map.contains_key(&key) {
-                            let value = self.values.generate();
-                            map.insert(key, value);
-                        }
+                        map.entry(key).or_insert_with(|| self.values.generate());
                     });
                     attempts += 1;
                 }

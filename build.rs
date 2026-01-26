@@ -7,7 +7,7 @@
 
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() {
@@ -92,7 +92,7 @@ fn ensure_hegel() -> PathBuf {
 
 /// Ensure uv is available, downloading it if necessary.
 /// Returns the path to the uv binary.
-fn ensure_uv(cache_dir: &PathBuf) -> PathBuf {
+fn ensure_uv(cache_dir: &Path) -> PathBuf {
     // Check if uv already on PATH
     if let Some(path) = find_on_path("uv") {
         eprintln!("cargo:warning=Found uv on PATH: {}", path.display());
@@ -154,7 +154,7 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
 
 /// Check if a file is executable (Unix only).
 #[cfg(unix)]
-fn is_executable(path: &PathBuf) -> bool {
+fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     path.metadata()
         .map(|m| m.permissions().mode() & 0o111 != 0)

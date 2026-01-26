@@ -17,12 +17,28 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
 
-  test:
-    name: tests
+  clippy:
+    name: clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy -- -D warnings
+
+  test:
+    name: tests (${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # keep this in sync with the rust-version in cargo.toml
+        rust: ['1.62', stable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
