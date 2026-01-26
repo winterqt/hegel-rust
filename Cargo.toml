@@ -2,7 +2,7 @@
 name = "hegel"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.62"
+rust-version = "1.63"
 description = "Property-based testing SDK for the Hegel test data generator"
 license = "MIT"
 readme = "README.md"
