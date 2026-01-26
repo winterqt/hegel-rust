@@ -3,16 +3,14 @@ use serde::forward_to_deserialize_any;
 use std::collections::HashMap;
 use std::fmt;
 
-const HEGEL_INF: &str = "hegel-inf-a928fa52";
-const HEGEL_NINF: &str = "hegel-ninf-a928fa52";
-const HEGEL_NAN: &str = "hegel-nan-a928fa52";
-
-/// A JSON-like value that can hold NaN and Infinity.
+/// A JSON-like value that can hold NaN, Infinity, and large integers.
 #[derive(Clone, Debug)]
 pub enum HegelValue {
     Null,
     Bool(bool),
     Number(f64),
+    /// Large integer that doesn't fit in f64 precisely (abs >= 2^63)
+    BigInt(String),
     String(String),
     Array(Vec<HegelValue>),
     Object(HashMap<String, HegelValue>),
@@ -24,23 +22,30 @@ impl From<serde_json::Value> for HegelValue {
             serde_json::Value::Null => HegelValue::Null,
             serde_json::Value::Bool(b) => HegelValue::Bool(b),
             serde_json::Value::Number(n) => HegelValue::Number(n.as_f64().unwrap_or(0.0)),
-            serde_json::Value::String(s) => {
-                // Check for sentinel strings
-                match s.as_str() {
-                    HEGEL_INF => HegelValue::Number(f64::INFINITY),
-                    HEGEL_NINF => HegelValue::Number(f64::NEG_INFINITY),
-                    HEGEL_NAN => HegelValue::Number(f64::NAN),
-                    _ => HegelValue::String(s),
-                }
-            }
+            serde_json::Value::String(s) => HegelValue::String(s),
             serde_json::Value::Array(arr) => {
                 HegelValue::Array(arr.into_iter().map(HegelValue::from).collect())
             }
-            serde_json::Value::Object(map) => HegelValue::Object(
-                map.into_iter()
-                    .map(|(k, v)| (k, HegelValue::from(v)))
-                    .collect(),
-            ),
+            serde_json::Value::Object(map) => {
+                // Check for special object wrappers
+                if map.len() == 1 {
+                    if let Some(serde_json::Value::String(s)) = map.get("$float") {
+                        return match s.as_str() {
+                            "inf" => HegelValue::Number(f64::INFINITY),
+                            "-inf" => HegelValue::Number(f64::NEG_INFINITY),
+                            "nan" => HegelValue::Number(f64::NAN),
+                            _ => HegelValue::Number(f64::NAN), // fallback
+                        };
+                    } else if let Some(serde_json::Value::String(s)) = map.get("$integer") {
+                        return HegelValue::BigInt(s.clone());
+                    }
+                }
+                HegelValue::Object(
+                    map.into_iter()
+                        .map(|(k, v)| (k, HegelValue::from(v)))
+                        .collect(),
+                )
+            }
         }
     }
 }
@@ -77,6 +82,24 @@ impl<'de> Deserializer<'de> for HegelValue {
                     visitor.visit_i64(n as i64)
                 } else {
                     visitor.visit_f64(n)
+                }
+            }
+            HegelValue::BigInt(s) => {
+                // Parse the string and use the smallest visitor type that fits.
+                // This ensures compatibility with serde's primitive deserializers.
+                if let Ok(n) = s.parse::<u64>() {
+                    visitor.visit_u64(n)
+                } else if let Ok(n) = s.parse::<i64>() {
+                    visitor.visit_i64(n)
+                } else if let Ok(n) = s.parse::<u128>() {
+                    visitor.visit_u128(n)
+                } else if let Ok(n) = s.parse::<i128>() {
+                    visitor.visit_i128(n)
+                } else {
+                    Err(HegelValueError(format!(
+                        "invalid big integer value: {}",
+                        s
+                    )))
                 }
             }
             HegelValue::String(s) => visitor.visit_string(s),
@@ -222,13 +245,33 @@ mod tests {
     }
 
     #[test]
-    fn test_from_serde_json_sentinels() {
-        let json = serde_json::json!([1.0, "hegel-nan-a928fa52", "hegel-inf-a928fa52"]);
+    fn test_from_serde_json_object_wrappers() {
+        let json =
+            serde_json::json!([1.0, {"$float": "nan"}, {"$float": "inf"}, {"$float": "-inf"}]);
         let hegel = HegelValue::from(json);
         let result: Vec<f64> = from_hegel_value(hegel).unwrap();
         assert_eq!(result[0], 1.0);
         assert!(result[1].is_nan());
-        assert!(result[2].is_infinite());
+        assert!(result[2].is_infinite() && result[2].is_sign_positive());
+        assert!(result[3].is_infinite() && result[3].is_sign_negative());
+    }
+
+    #[test]
+    fn test_from_serde_json_big_integer() {
+        // Value larger than 2^63
+        let json = serde_json::json!({"$integer": "9223372036854776833"});
+        let hegel = HegelValue::from(json);
+        let result: u64 = from_hegel_value(hegel).unwrap();
+        assert_eq!(result, 9223372036854776833u64);
+    }
+
+    #[test]
+    fn test_from_serde_json_big_negative_integer() {
+        // Large negative value
+        let json = serde_json::json!({"$integer": "-9223372036854776833"});
+        let hegel = HegelValue::from(json);
+        let result: i128 = from_hegel_value(hegel).unwrap();
+        assert_eq!(result, -9223372036854776833i128);
     }
 
     #[test]
