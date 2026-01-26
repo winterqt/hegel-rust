@@ -96,10 +96,7 @@ impl<'de> Deserializer<'de> for HegelValue {
                 } else if let Ok(n) = s.parse::<i128>() {
                     visitor.visit_i128(n)
                 } else {
-                    Err(HegelValueError(format!(
-                        "invalid big integer value: {}",
-                        s
-                    )))
+                    Err(HegelValueError(format!("invalid big integer value: {}", s)))
                 }
             }
             HegelValue::String(s) => visitor.visit_string(s),
