@@ -38,7 +38,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test
+      - run: RUST_BACKTRACE=1 cargo test
 
   test-all-features:
     name: tests (all features, ${{ matrix.rust }})
@@ -56,7 +56,7 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
+      - run: RUST_BACKTRACE=1 cargo test --all-features
 
   docs:
     name: docs
