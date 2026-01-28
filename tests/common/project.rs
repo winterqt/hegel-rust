@@ -5,6 +5,7 @@ use tempfile::TempDir;
 pub struct TempRustProject {
     _temp_dir: TempDir,
     project_path: PathBuf,
+    env_vars: Vec<(String, String)>,
 }
 
 pub struct RunOutput {
@@ -41,16 +42,25 @@ hegel = {{ path = "{}" }}
         Self {
             _temp_dir: temp_dir,
             project_path,
+            env_vars: Vec::new(),
         }
     }
 
-    pub fn run(&self) -> RunOutput {
-        let output = Command::new(env!("CARGO"))
-            // --quiet hides compilation output from cargo
-            .args(["run", "--quiet"])
-            .current_dir(&self.project_path)
-            .output()
-            .expect("Failed to run cargo");
+    pub fn env(mut self, key: &str, value: &str) -> Self {
+        self.env_vars.push((key.to_string(), value.to_string()));
+        self
+    }
+
+    pub fn run(self) -> RunOutput {
+        let mut cmd = Command::new(env!("CARGO"));
+        cmd.args(["run", "--quiet"])
+            .current_dir(&self.project_path);
+
+        for (key, value) in &self.env_vars {
+            cmd.env(key, value);
+        }
+
+        let output = cmd.output().expect("Failed to run cargo");
 
         RunOutput {
             status: output.status,
