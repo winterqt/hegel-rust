@@ -55,16 +55,16 @@ hegel-rust/
 
 ### How It Works
 
-The SDK spawns the `hegel` CLI as a subprocess with `--client-mode`. The test binary creates a Unix socket server, and hegel connects for each test case. The build script (`build.rs`) automatically installs Python and hegel into cargo's `OUT_DIR/hegel` via uv if not found on PATH.
+The SDK creates a socket path and spawns the `hegel` CLI as a subprocess. Hegeld binds to the socket and listens for connections. The SDK then connects as a client, and a single persistent connection is maintained for the program run. Multiple tests can be executed over this connection. The build script (`build.rs`) automatically installs Python and hegel into cargo's `OUT_DIR/hegel` via uv if not found on PATH.
 
 ### Protocol
 
-Each test case follows this handshake:
-1. Hegel connects to the SDK's socket
-2. Hegel sends: `{"is_last_run": bool}` (is_last_run=true on final replay for output)
-3. SDK responds: `{"type": "handshake_ack"}`
-4. SDK runs test, communicating via `generate`/`start_span`/`stop_span` commands
-5. SDK sends result: `{"type": "test_result", "result": "pass"|"fail"|"reject", ...}`
+The protocol uses CBOR encoding over multiplexed channels. For each test:
+1. SDK sends `run_test` request on control channel
+2. Hegeld sends `test_case` events with channel IDs for each test case
+3. SDK runs test function, sending `generate`/`start_span`/`stop_span` requests on the test channel
+4. SDK sends `mark_complete` with status (VALID, INVALID, or INTERESTING)
+5. After all test cases, hegeld sends `test_done` with results`
 
 ### Thread-Local State
 

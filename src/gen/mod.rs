@@ -43,38 +43,9 @@ pub(crate) mod exit_codes {
 }
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
-use std::os::unix::net::UnixStream;
 use std::sync::Arc;
 
-use crate::protocol::{cbor_to_json, json_to_cbor, negotiate_version, Channel, Connection};
-
-// ============================================================================
-// Mode Management
-// ============================================================================
-
-/// Operating mode for the SDK.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum HegelMode {
-    /// SDK connects to a running hegel server (external process runs tests)
-    #[default]
-    External,
-    /// SDK accepts connections from hegel (embedded in test binary)
-    Embedded,
-}
-
-thread_local! {
-    static MODE: Cell<HegelMode> = const { Cell::new(HegelMode::External) };
-}
-
-/// Get the current operating mode.
-pub fn current_mode() -> HegelMode {
-    MODE.with(|m| m.get())
-}
-
-/// Set the operating mode (used by embedded module).
-pub(crate) fn set_mode(mode: HegelMode) {
-    MODE.with(|m| m.set(mode));
-}
+use crate::protocol::{cbor_to_json, json_to_cbor, Channel, Connection};
 
 // ============================================================================
 // State Management (Thread-Local)
@@ -92,7 +63,7 @@ pub(crate) fn is_last_run() -> bool {
     IS_LAST_RUN.with(|r| r.get())
 }
 
-/// Set the is_last_run flag (used by embedded module).
+/// Set the is_last_run flag.
 pub(crate) fn set_is_last_run(is_last: bool) {
     IS_LAST_RUN.with(|r| r.set(is_last));
 }
@@ -137,90 +108,14 @@ fn is_debug() -> bool {
     std::env::var("HEGEL_DEBUG").is_ok()
 }
 
-fn get_socket_path() -> String {
-    std::env::var("HEGEL_SOCKET").expect("HEGEL_SOCKET environment variable not set")
-}
-
-/// Check if we have an active connection.
-fn is_connected() -> bool {
-    CONNECTION.with(|conn| conn.borrow().is_some())
-}
-
-/// Get the current span depth.
-fn get_span_depth() -> usize {
-    CONNECTION.with(|conn| {
-        conn.borrow()
-            .as_ref()
-            .map(|s| s.span_depth)
-            .unwrap_or(0)
-    })
-}
-
-/// Open a connection. Panics if already connected.
-pub(crate) fn open_connection() {
-    CONNECTION.with(|conn| {
-        let mut conn = conn.borrow_mut();
-        assert!(
-            conn.is_none(),
-            "open_connection called while already connected"
-        );
-
-        let socket_path = get_socket_path();
-        let stream = match UnixStream::connect(&socket_path) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!(
-                    "Failed to connect to Hegel socket at {}: {}",
-                    socket_path, e
-                );
-                std::process::exit(exit_codes::SOCKET_ERROR);
-            }
-        };
-
-        let connection = Connection::new(stream);
-
-        // Perform version negotiation
-        if let Err(e) = negotiate_version(&connection) {
-            eprintln!("Version negotiation failed: {}", e);
-            std::process::exit(exit_codes::SOCKET_ERROR);
-        }
-
-        // Get the control channel for sending requests
-        let channel = connection.control_channel();
-
-        *conn = Some(ConnectionState {
-            connection,
-            channel,
-            span_depth: 0,
-        });
-    });
-}
-
-/// Close the connection. Panics if not connected or if spans are still open.
-pub(crate) fn close_connection() {
-    CONNECTION.with(|conn| {
-        let mut conn = conn.borrow_mut();
-        let state = conn
-            .as_ref()
-            .expect("close_connection called while not connected");
-        assert_eq!(
-            state.span_depth, 0,
-            "close_connection called with {} unclosed span(s)",
-            state.span_depth
-        );
-        *conn = None;
-    });
-}
-
-/// Set the connection from an already-connected stream (used by embedded module).
-/// This is used when the SDK creates a server and accepts connections from hegel.
+/// Set the connection for the current test case.
 /// The channel parameter is the test case channel assigned by the server.
-pub(crate) fn set_embedded_connection(connection: Arc<Connection>, channel: Channel) {
+pub(crate) fn set_connection(connection: Arc<Connection>, channel: Channel) {
     CONNECTION.with(|conn| {
         let mut conn = conn.borrow_mut();
         assert!(
             conn.is_none(),
-            "set_embedded_connection called while already connected"
+            "set_connection called while already connected"
         );
 
         *conn = Some(ConnectionState {
@@ -231,8 +126,8 @@ pub(crate) fn set_embedded_connection(connection: Arc<Connection>, channel: Chan
     });
 }
 
-/// Clear the embedded connection (used by embedded module).
-pub(crate) fn clear_embedded_connection() {
+/// Clear the connection after a test case completes.
+pub(crate) fn clear_connection() {
     CONNECTION.with(|conn| {
         *conn.borrow_mut() = None;
     });
@@ -332,19 +227,10 @@ pub(crate) fn request_from_schema(schema: &Value) -> Result<Value, StopTestError
 
 /// Generate a value from a schema.
 pub fn generate_from_schema<T: serde::de::DeserializeOwned>(schema: &Value) -> T {
-    // In embedded mode, connection is already set - don't try to open/close
-    let need_connection = !is_connected() && current_mode() == HegelMode::External;
-    if need_connection {
-        open_connection();
-    }
-
     let result = match request_from_schema(schema) {
         Ok(v) => v,
         Err(StopTestError) => {
             // Server ran out of data - reject this test case
-            if need_connection {
-                close_connection();
-            }
             crate::assume(false);
             unreachable!("assume(false) should not return")
         }
@@ -372,9 +258,6 @@ pub fn start_span(label: u64) {
     increment_span_depth();
     if let Err(StopTestError) = send_request("start_span", &json!({"label": label})) {
         decrement_span_depth();
-        if get_span_depth() == 0 && current_mode() == HegelMode::External {
-            close_connection();
-        }
         crate::assume(false);
     }
 }
@@ -387,11 +270,6 @@ pub fn stop_span(discard: bool) {
     decrement_span_depth();
     // Ignore StopTest errors from stop_span - we're already closing
     let _ = send_request("stop_span", &json!({"discard": discard}));
-    // Only close connection in external mode - in embedded mode, the
-    // connection is managed by the embedded module
-    if get_span_depth() == 0 && current_mode() == HegelMode::External {
-        close_connection();
-    }
 }
 
 // ============================================================================

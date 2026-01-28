@@ -1,6 +1,5 @@
 use crate::gen::{
-    clear_embedded_connection, set_embedded_connection, set_is_last_run, set_mode,
-    take_generated_values, HegelMode,
+    clear_connection, set_connection, set_is_last_run, take_generated_values,
 };
 use crate::protocol::{
     cbor_to_json, json_to_cbor, Channel, Connection,
@@ -9,11 +8,12 @@ use crate::protocol::{
 use ciborium::Value as CborValue;
 use serde_json::{json, Value};
 use std::cell::RefCell;
-use std::os::unix::net::UnixListener;
+use std::os::unix::net::UnixStream;
 use std::panic::{self, catch_unwind, AssertUnwindSafe};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once};
+use std::time::Duration;
 use tempfile::TempDir;
 
 static PANIC_HOOK_INIT: Once = Once::new();
@@ -79,7 +79,7 @@ impl Verbosity {
 /// Special marker used to identify assume(false) panics.
 const REJECT_MARKER: &str = "HEGEL_REJECT";
 
-/// Run property-based tests using Hegel in embedded mode with default options.
+/// Run property-based tests using Hegel with default options.
 ///
 /// This is a convenience function for simple cases. For configuration options,
 /// use [`Hegel::new`] with the builder pattern.
@@ -178,18 +178,14 @@ where
     pub fn run(self) {
         init_panic_hook();
 
-        // Create temp directory with socket
+        // Create temp directory with socket path
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
         let socket_path = temp_dir.path().join("hegel.sock");
 
-        // Create Unix socket server
-        let listener = UnixListener::bind(&socket_path).expect("Failed to bind socket");
-
-        // Build hegel command
+        // Build hegel command - hegeld will bind to the socket and listen
         let hegel_path = self.hegel_path.as_deref().unwrap_or(HEGEL_BINARY_PATH);
         let mut cmd = Command::new(hegel_path);
-        cmd.arg("--client-mode")
-            .arg(&socket_path)
+        cmd.arg(&socket_path)
             .arg("--verbosity")
             .arg(self.verbosity.as_str());
 
@@ -204,28 +200,46 @@ where
 
         let mut child = cmd.spawn().expect("Failed to spawn hegel");
 
-        // Accept the single connection from hegeld
-        let stream = match listener.accept() {
-            Ok((stream, _)) => stream,
-            Err(e) => {
-                let _ = child.kill();
-                panic!("Failed to accept connection: {}", e);
+        // Wait for hegeld to create the socket and start listening
+        let mut attempts = 0;
+        let stream = loop {
+            if socket_path.exists() {
+                match UnixStream::connect(&socket_path) {
+                    Ok(stream) => break stream,
+                    Err(e) if attempts < 50 => {
+                        // Socket exists but not yet listening
+                        std::thread::sleep(Duration::from_millis(100));
+                        attempts += 1;
+                        continue;
+                    }
+                    Err(e) => {
+                        let _ = child.kill();
+                        panic!("Failed to connect to hegeld socket: {}", e);
+                    }
+                }
             }
+            if attempts >= 50 {
+                let _ = child.kill();
+                panic!("Timeout waiting for hegeld to create socket");
+            }
+            std::thread::sleep(Duration::from_millis(100));
+            attempts += 1;
         };
 
         // Create connection and perform version negotiation
         let connection = Connection::new(stream);
 
-        // Handle version negotiation (as server accepting from hegeld)
+        // Initiate version negotiation (SDK is the client)
         let control = connection.control_channel();
-        let (req_id, payload) = control.receive_request().expect("Failed to receive handshake");
+        let req_id = control.send_request(VERSION_NEGOTIATION_MESSAGE.to_vec())
+            .expect("Failed to send version negotiation");
+        let response = control.receive_response(req_id)
+            .expect("Failed to receive version response");
 
-        if payload != VERSION_NEGOTIATION_MESSAGE {
-            panic!("Invalid version negotiation message: {:?}", String::from_utf8_lossy(&payload));
+        if response != VERSION_NEGOTIATION_OK {
+            let _ = child.kill();
+            panic!("Version negotiation failed: {:?}", String::from_utf8_lossy(&response));
         }
-
-        control.send_response(req_id, VERSION_NEGOTIATION_OK.to_vec())
-            .expect("Failed to send version ack");
 
         if self.verbosity == Verbosity::Debug {
             eprintln!("Version negotiation complete");
@@ -346,17 +360,15 @@ fn run_test_case<F: FnMut()>(
     _verbosity: Verbosity,
     got_interesting: &Arc<AtomicBool>,
 ) -> (String, Option<Value>) {
-    // Set thread-local state
-    set_mode(HegelMode::Embedded);
+    // Set thread-local state for this test case
     set_is_last_run(is_final);
-    set_embedded_connection(Arc::clone(connection), test_channel.clone_for_embedded());
+    set_connection(Arc::clone(connection), test_channel.clone_for_embedded());
 
     // Run test in catch_unwind
     let result = catch_unwind(AssertUnwindSafe(test_fn));
 
     // Clear connection before returning (test is done generating)
-    clear_embedded_connection();
-    set_mode(HegelMode::External);
+    clear_connection();
 
     match result {
         Ok(()) => ("VALID".to_string(), None),
