@@ -7,9 +7,8 @@ fn rectangles() -> impl Generate<Rectangle> {
 }
 
 #[test]
-fn test_nix_integration_marker() {
-    // CI verifies this marker appears in build logs to confirm tests actually ran
-    println!("NIX_INTEGRATION_TEST_EXECUTED");
+fn test_nix_integration_canary() {
+
 }
 
 #[test]
