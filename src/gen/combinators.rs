@@ -1,6 +1,6 @@
 use super::{
-    discardable_group, generate_from_schema, generate_raw, group, integers, labels, BasicGenerator,
-    Generate, RawParse,
+    discardable_group, generate_from_schema, group, integers, labels, BasicGenerator, Generate,
+    RawParse,
 };
 use crate::cbor_helpers::{cbor_array, cbor_map, cbor_serialize};
 use ciborium::Value;
@@ -21,7 +21,7 @@ where
 {
     fn generate(&self) -> U {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             group(labels::MAPPED, || (self.f)(self.source.generate()))
         }
@@ -179,7 +179,7 @@ impl<T: Clone + Send + Sync + serde::Serialize> Generate<T> for SampledFromGener
         crate::assume(!self.elements.is_empty());
 
         if let Some(basic) = self.as_basic() {
-            return basic.parse_raw(generate_raw(basic.schema()));
+            return basic.generate();
         }
 
         // Generate index and pick
@@ -247,7 +247,7 @@ impl<'a, T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned
         crate::assume(!self.elements.is_empty());
 
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::SAMPLED_FROM, || {
@@ -315,7 +315,7 @@ impl<'a, T> Generate<T> for OneOfGenerator<'a, T> {
         crate::assume(!self.generators.is_empty());
 
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Generate index and delegate
             group(labels::ONE_OF, || {
@@ -423,7 +423,7 @@ where
 {
     fn generate(&self) -> Option<T> {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::OPTIONAL, || {

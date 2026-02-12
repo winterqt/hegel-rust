@@ -1,4 +1,4 @@
-use super::{generate_raw, group, labels, BasicGenerator, Generate, RawParse};
+use super::{group, labels, BasicGenerator, Generate, RawParse};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
 use std::mem::MaybeUninit;
@@ -15,7 +15,7 @@ where
 {
     fn generate(&self) -> (T1, T2) {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             group(labels::TUPLE, || {
                 let v1 = self.gen1.generate();
@@ -96,7 +96,7 @@ where
 {
     fn generate(&self) -> (T1, T2, T3) {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             group(labels::TUPLE, || {
                 let v1 = self.gen1.generate();

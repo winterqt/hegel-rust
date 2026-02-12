@@ -563,6 +563,13 @@ pub mod basic {
             }
         }
 
+        /// Generate a value by sending the schema to the server and parsing the response.
+        ///
+        /// This is a convenience for `self.parse_raw(generate_raw(self.schema()))`.
+        pub fn generate(&self) -> T {
+            self.parse_raw(super::generate_raw(self.schema()))
+        }
+
         /// Extract the type-erased RawParse, discarding the type parameter.
         ///
         /// This is used by composite generators to capture the parse closure

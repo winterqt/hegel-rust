@@ -1,6 +1,4 @@
-use super::{
-    generate_raw, group, integers, labels, BasicGenerator, Collection, Generate, RawParse,
-};
+use super::{group, integers, labels, BasicGenerator, Collection, Generate, RawParse};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 use std::collections::{HashMap, HashSet};
@@ -50,7 +48,7 @@ where
 {
     fn generate(&self) -> Vec<T> {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback: use server-managed collection sizing
             group(labels::LIST, || {
@@ -144,7 +142,7 @@ where
 {
     fn generate(&self) -> HashSet<T> {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::SET, || {
@@ -238,7 +236,7 @@ where
 {
     fn generate(&self) -> HashMap<KT, VT> {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::MAP, || {

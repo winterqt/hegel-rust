@@ -1,4 +1,4 @@
-use super::{generate_raw, group, labels, BasicGenerator, BoxedGenerator, Generate};
+use super::{group, labels, BasicGenerator, BoxedGenerator, Generate};
 use crate::cbor_helpers::cbor_map;
 use ciborium::Value;
 use std::marker::PhantomData;
@@ -61,7 +61,7 @@ pub struct FixedDictGenerator<'a> {
 impl<'a> Generate<Value> for FixedDictGenerator<'a> {
     fn generate(&self) -> Value {
         if let Some(basic) = self.as_basic() {
-            basic.parse_raw(generate_raw(basic.schema()))
+            basic.generate()
         } else {
             // Compositional fallback
             group(labels::FIXED_DICT, || {
