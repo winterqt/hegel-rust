@@ -1,4 +1,4 @@
-use super::{generate_raw, group, labels, BoxedGenerator, Generate};
+use super::{generate_raw, group, labels, BasicGenerator, BoxedGenerator, Generate};
 use crate::cbor_helpers::cbor_map;
 use ciborium::Value;
 use std::marker::PhantomData;
@@ -14,13 +14,13 @@ impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G
         crate::cbor_helpers::cbor_serialize(&self.inner.generate())
     }
 
-    fn schema(&self) -> Option<Value> {
-        self.inner.schema()
-    }
-
-    fn parse_raw(&self, raw: Value) -> Value {
-        let t_val = self.inner.parse_raw(raw);
-        crate::cbor_helpers::cbor_serialize(&t_val)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
+        let inner_basic = self.inner.as_basic()?;
+        let schema = inner_basic.schema().clone();
+        Some(BasicGenerator::new(schema, move |raw| {
+            let t_val = inner_basic.parse_raw(raw);
+            crate::cbor_helpers::cbor_serialize(&t_val)
+        }))
     }
 }
 
@@ -60,8 +60,8 @@ pub struct FixedDictGenerator<'a> {
 
 impl<'a> Generate<Value> for FixedDictGenerator<'a> {
     fn generate(&self) -> Value {
-        if let Some(schema) = self.schema() {
-            self.parse_raw(generate_raw(&schema))
+        if let Some(basic) = self.as_basic() {
+            basic.parse_raw(generate_raw(basic.schema()))
         } else {
             // Compositional fallback
             group(labels::FIXED_DICT, || {
@@ -75,29 +75,36 @@ impl<'a> Generate<Value> for FixedDictGenerator<'a> {
         }
     }
 
-    fn schema(&self) -> Option<Value> {
-        let schemas: Option<Vec<Value>> = self.fields.iter().map(|(_, gen)| gen.schema()).collect();
-        let schemas = schemas?;
-
-        Some(cbor_map! {
-            "type" => "tuple",
-            "elements" => Value::Array(schemas)
-        })
-    }
-
-    fn parse_raw(&self, raw: Value) -> Value {
-        let arr = match raw {
-            Value::Array(arr) => arr,
-            _ => panic!("Expected array from tuple schema, got {:?}", raw),
-        };
-
-        let entries: Vec<(Value, Value)> = self
+    fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
+        let basics: Vec<BasicGenerator<'_, Value>> = self
             .fields
             .iter()
-            .zip(arr)
-            .map(|((name, gen), val)| (Value::Text(name.clone()), gen.parse_raw(val)))
-            .collect();
-        Value::Map(entries)
+            .map(|(_, gen)| gen.as_basic())
+            .collect::<Option<Vec<_>>>()?;
+
+        let schemas: Vec<Value> = basics.iter().map(|b| b.schema().clone()).collect();
+
+        let schema = cbor_map! {
+            "type" => "tuple",
+            "elements" => Value::Array(schemas)
+        };
+
+        let field_names: Vec<String> = self.fields.iter().map(|(name, _)| name.clone()).collect();
+
+        Some(BasicGenerator::new(schema, move |raw| {
+            let arr = match raw {
+                Value::Array(arr) => arr,
+                _ => panic!("Expected array from tuple schema, got {:?}", raw),
+            };
+
+            let entries: Vec<(Value, Value)> = field_names
+                .iter()
+                .zip(basics.iter())
+                .zip(arr)
+                .map(|((name, basic), val)| (Value::Text(name.clone()), basic.parse_raw(val)))
+                .collect();
+            Value::Map(entries)
+        }))
     }
 }
 

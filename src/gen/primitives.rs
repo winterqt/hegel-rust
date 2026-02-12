@@ -1,4 +1,4 @@
-use super::{generate_raw, Generate};
+use super::{generate_from_schema, BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_map, cbor_serialize};
 use ciborium::Value;
 
@@ -18,12 +18,11 @@ impl<T: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned> Ge
         self.value.clone()
     }
 
-    fn schema(&self) -> Option<Value> {
-        self.schema.clone()
-    }
-
-    fn parse_raw(&self, raw: Value) -> T {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
+        let schema = self.schema.as_ref()?.clone();
+        Some(BasicGenerator::new(schema, |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -51,15 +50,14 @@ pub struct BoolGenerator;
 
 impl Generate<bool> for BoolGenerator {
     fn generate(&self) -> bool {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "boolean"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "boolean"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> bool {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, bool>> {
+        Some(BasicGenerator::new(
+            cbor_map! {"type" => "boolean"},
+            super::deserialize_value,
+        ))
     }
 }
 

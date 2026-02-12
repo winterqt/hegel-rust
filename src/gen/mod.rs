@@ -15,6 +15,8 @@ mod tuples;
 mod value;
 
 // public api
+pub use self::basic::BasicGenerator;
+pub(crate) use self::basic::RawParse;
 pub use binary::binary;
 pub use collections::{hashmaps, hashsets, vecs, HashMapGenerator};
 pub use combinators::{one_of, optional, sampled_from, sampled_from_slice, BoxedGenerator};
@@ -476,33 +478,163 @@ pub mod labels {
 }
 
 // ============================================================================
+// BasicGenerator
+// ============================================================================
+
+/// A basic generator bundles a schema with a parse function.
+///
+/// This is the key abstraction for schema-based generation. Generators that
+/// can be expressed as a single schema implement `as_basic()` to return one.
+/// Combinators like `map()` compose BasicGenerators by chaining parse functions
+/// while preserving the schema.
+///
+/// The lifetime `'a` ties the BasicGenerator to the generator that created it.
+pub mod basic {
+    use ciborium::Value;
+    use std::marker::PhantomData;
+    use std::mem::MaybeUninit;
+
+    /// Type-erased parse closure. Does not carry the type parameter T,
+    /// so it can be captured in closures without requiring T: 'a.
+    ///
+    /// Safety invariant: the closure always writes exactly one valid value
+    /// of the expected type to the provided `*mut u8` pointer.
+    pub(crate) struct RawParse<'a> {
+        pub(crate) schema: Value,
+        pub(crate) call: Box<dyn Fn(Value, *mut u8) + Send + Sync + 'a>,
+    }
+
+    impl<'a> RawParse<'a> {
+        /// Invoke the parse closure, writing the result to the output pointer.
+        ///
+        /// # Safety
+        ///
+        /// The pointer must be properly aligned and sized for the type T that was
+        /// used to create this RawParse (via BasicGenerator::new or compose_raw).
+        #[inline]
+        pub(crate) unsafe fn invoke(&self, raw: Value, out_ptr: *mut u8) {
+            (self.call)(raw, out_ptr);
+        }
+    }
+
+    /// A bundled schema + parse function for schema-based generation.
+    ///
+    /// The `'a` lifetime ties the BasicGenerator to the generator that created it.
+    /// Internally, T is erased from the closure to avoid requiring `T: 'a` — this
+    /// allows composite generators to capture the inner parse closure without
+    /// propagating lifetime bounds on T.
+    pub struct BasicGenerator<'a, T> {
+        pub(crate) raw: RawParse<'a>,
+        _phantom: PhantomData<fn() -> T>,
+    }
+
+    impl<'a, T> BasicGenerator<'a, T> {
+        /// Create a new BasicGenerator from a schema and parse function.
+        pub fn new<F: Fn(Value) -> T + Send + Sync + 'a>(schema: Value, f: F) -> Self {
+            BasicGenerator {
+                raw: RawParse {
+                    schema,
+                    call: Box::new(move |raw, out_ptr| {
+                        let result = f(raw);
+                        // SAFETY: caller (parse_raw/map) provides a properly aligned
+                        // pointer to MaybeUninit<T> with sufficient size.
+                        unsafe {
+                            std::ptr::write(out_ptr as *mut T, result);
+                        }
+                    }),
+                },
+                _phantom: PhantomData,
+            }
+        }
+
+        /// Get a reference to the schema.
+        pub fn schema(&self) -> &Value {
+            &self.raw.schema
+        }
+
+        /// Parse a raw CBOR value into the generated type.
+        pub fn parse_raw(&self, raw: Value) -> T {
+            let mut out = MaybeUninit::<T>::uninit();
+            // SAFETY: raw.call writes exactly one T to the pointer (invariant from new/map).
+            // MaybeUninit<T> provides properly aligned, sized storage.
+            unsafe {
+                self.raw.invoke(raw, out.as_mut_ptr() as *mut u8);
+                out.assume_init()
+            }
+        }
+
+        /// Extract the type-erased RawParse, discarding the type parameter.
+        ///
+        /// This is used by composite generators to capture the parse closure
+        /// without requiring T: 'a on the closure's captures.
+        pub(crate) fn into_raw(self) -> RawParse<'a> {
+            self.raw
+        }
+
+        /// Wrap a RawParse with a type tag.
+        ///
+        /// # Safety
+        ///
+        /// The RawParse must have been created for type T (i.e., its closure
+        /// writes exactly one T to the output pointer).
+        pub(crate) unsafe fn from_raw(raw: RawParse<'a>) -> Self {
+            BasicGenerator {
+                raw,
+                _phantom: PhantomData,
+            }
+        }
+
+        /// Transform the output type by composing a function with the parse.
+        ///
+        /// The function `f` is borrowed (not owned), avoiding `'static` bounds.
+        /// The resulting BasicGenerator shares the same schema but applies `f`
+        /// after parsing.
+        pub fn map<U, F: Fn(T) -> U + Send + Sync>(self, f: &'a F) -> BasicGenerator<'a, U> {
+            let old_call = self.raw.call;
+            BasicGenerator {
+                raw: RawParse {
+                    schema: self.raw.schema,
+                    call: Box::new(move |raw, out_ptr| {
+                        // Parse to intermediate T
+                        let mut t_storage = MaybeUninit::<T>::uninit();
+                        old_call(raw, t_storage.as_mut_ptr() as *mut u8);
+                        // SAFETY: old_call wrote a valid T (invariant).
+                        let t_val = unsafe { t_storage.assume_init() };
+                        // Apply transform and write U
+                        let u_val = f(t_val);
+                        // SAFETY: caller provides properly aligned pointer to MaybeUninit<U>.
+                        unsafe {
+                            std::ptr::write(out_ptr as *mut U, u_val);
+                        }
+                    }),
+                },
+                _phantom: PhantomData,
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Generate Trait
 // ============================================================================
 
 /// The core trait for all generators.
 ///
-/// Generators produce values of type `T` and optionally provide a schema
-/// for server-based generation.
+/// Generators produce values of type `T` and optionally provide a
+/// [`BasicGenerator`] for server-based generation via `as_basic()`.
 pub trait Generate<T>: Send + Sync {
     /// Generate a value.
     fn generate(&self) -> T;
 
-    /// Return a JSON schema for server-based generation, if possible.
+    /// Return a BasicGenerator for schema-based generation, if possible.
     ///
     /// When available, this enables single-request schema-based generation
     /// and allows combinators to compose schemas.
     ///
     /// Returns `None` for generators that cannot be expressed as a schema
     /// (e.g., after `flat_map` or `filter`).
-    fn schema(&self) -> Option<Value> {
+    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
         None
-    }
-
-    /// Convert a raw server response to the generated type.
-    ///
-    /// Only called when `schema()` returns `Some`. Panics by default.
-    fn parse_raw(&self, _raw: Value) -> T {
-        panic!("parse_raw called on a generator without a schema")
     }
 
     /// Transform generated values using a function.
@@ -577,11 +709,7 @@ impl<T, G: Generate<T>> Generate<T> for &G {
         (*self).generate()
     }
 
-    fn schema(&self) -> Option<Value> {
-        (*self).schema()
-    }
-
-    fn parse_raw(&self, raw: Value) -> T {
-        (*self).parse_raw(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, T>> {
+        (*self).as_basic()
     }
 }

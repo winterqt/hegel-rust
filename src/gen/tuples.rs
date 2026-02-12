@@ -1,6 +1,7 @@
-use super::{generate_raw, group, labels, Generate};
+use super::{generate_raw, group, labels, BasicGenerator, Generate, RawParse};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
+use std::mem::MaybeUninit;
 
 pub struct Tuple2Generator<G1, G2> {
     gen1: G1,
@@ -13,8 +14,8 @@ where
     G2: Generate<T2>,
 {
     fn generate(&self) -> (T1, T2) {
-        if let Some(schema) = self.schema() {
-            self.parse_raw(generate_raw(&schema))
+        if let Some(basic) = self.as_basic() {
+            basic.parse_raw(generate_raw(basic.schema()))
         } else {
             group(labels::TUPLE, || {
                 let v1 = self.gen1.generate();
@@ -24,29 +25,53 @@ where
         }
     }
 
-    fn schema(&self) -> Option<Value> {
-        let s1 = self.gen1.schema()?;
-        let s2 = self.gen2.schema()?;
+    fn as_basic(&self) -> Option<BasicGenerator<'_, (T1, T2)>> {
+        let basic1 = self.gen1.as_basic()?;
+        let basic2 = self.gen2.as_basic()?;
 
-        Some(cbor_map! {
+        let schema = cbor_map! {
             "type" => "tuple",
-            "elements" => cbor_array![s1, s2]
-        })
-    }
-
-    fn parse_raw(&self, raw: Value) -> (T1, T2) {
-        let arr = match raw {
-            Value::Array(arr) => arr,
-            _ => panic!("Expected array from tuple schema, got {:?}", raw),
+            "elements" => cbor_array![basic1.schema().clone(), basic2.schema().clone()]
         };
-        let mut iter = arr.into_iter();
-        let v1 = self
-            .gen1
-            .parse_raw(iter.next().expect("tuple missing element 0"));
-        let v2 = self
-            .gen2
-            .parse_raw(iter.next().expect("tuple missing element 1"));
-        (v1, v2)
+
+        let raw1 = basic1.into_raw();
+        let raw2 = basic2.into_raw();
+
+        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
+            Box::new(move |raw, out_ptr| {
+                let arr = match raw {
+                    Value::Array(arr) => arr,
+                    _ => panic!("Expected array from tuple schema, got {:?}", raw),
+                };
+                let mut iter = arr.into_iter();
+
+                let mut v1_out = MaybeUninit::<T1>::uninit();
+                unsafe {
+                    raw1.invoke(
+                        iter.next().expect("tuple missing element 0"),
+                        v1_out.as_mut_ptr() as *mut u8,
+                    )
+                };
+                let v1 = unsafe { v1_out.assume_init() };
+
+                let mut v2_out = MaybeUninit::<T2>::uninit();
+                unsafe {
+                    raw2.invoke(
+                        iter.next().expect("tuple missing element 1"),
+                        v2_out.as_mut_ptr() as *mut u8,
+                    )
+                };
+                let v2 = unsafe { v2_out.assume_init() };
+
+                unsafe { std::ptr::write(out_ptr as *mut (T1, T2), (v1, v2)) };
+            });
+
+        Some(unsafe {
+            BasicGenerator::from_raw(RawParse {
+                schema,
+                call: writer,
+            })
+        })
     }
 }
 
@@ -70,8 +95,8 @@ where
     G3: Generate<T3>,
 {
     fn generate(&self) -> (T1, T2, T3) {
-        if let Some(schema) = self.schema() {
-            self.parse_raw(generate_raw(&schema))
+        if let Some(basic) = self.as_basic() {
+            basic.parse_raw(generate_raw(basic.schema()))
         } else {
             group(labels::TUPLE, || {
                 let v1 = self.gen1.generate();
@@ -82,33 +107,68 @@ where
         }
     }
 
-    fn schema(&self) -> Option<Value> {
-        let s1 = self.gen1.schema()?;
-        let s2 = self.gen2.schema()?;
-        let s3 = self.gen3.schema()?;
+    fn as_basic(&self) -> Option<BasicGenerator<'_, (T1, T2, T3)>> {
+        let basic1 = self.gen1.as_basic()?;
+        let basic2 = self.gen2.as_basic()?;
+        let basic3 = self.gen3.as_basic()?;
 
-        Some(cbor_map! {
+        let schema = cbor_map! {
             "type" => "tuple",
-            "elements" => cbor_array![s1, s2, s3]
-        })
-    }
-
-    fn parse_raw(&self, raw: Value) -> (T1, T2, T3) {
-        let arr = match raw {
-            Value::Array(arr) => arr,
-            _ => panic!("Expected array from tuple schema, got {:?}", raw),
+            "elements" => cbor_array![
+                basic1.schema().clone(),
+                basic2.schema().clone(),
+                basic3.schema().clone()
+            ]
         };
-        let mut iter = arr.into_iter();
-        let v1 = self
-            .gen1
-            .parse_raw(iter.next().expect("tuple missing element 0"));
-        let v2 = self
-            .gen2
-            .parse_raw(iter.next().expect("tuple missing element 1"));
-        let v3 = self
-            .gen3
-            .parse_raw(iter.next().expect("tuple missing element 2"));
-        (v1, v2, v3)
+
+        let raw1 = basic1.into_raw();
+        let raw2 = basic2.into_raw();
+        let raw3 = basic3.into_raw();
+
+        let writer: Box<dyn Fn(Value, *mut u8) + Send + Sync + '_> =
+            Box::new(move |raw, out_ptr| {
+                let arr = match raw {
+                    Value::Array(arr) => arr,
+                    _ => panic!("Expected array from tuple schema, got {:?}", raw),
+                };
+                let mut iter = arr.into_iter();
+
+                let mut v1_out = MaybeUninit::<T1>::uninit();
+                unsafe {
+                    raw1.invoke(
+                        iter.next().expect("tuple missing element 0"),
+                        v1_out.as_mut_ptr() as *mut u8,
+                    )
+                };
+                let v1 = unsafe { v1_out.assume_init() };
+
+                let mut v2_out = MaybeUninit::<T2>::uninit();
+                unsafe {
+                    raw2.invoke(
+                        iter.next().expect("tuple missing element 1"),
+                        v2_out.as_mut_ptr() as *mut u8,
+                    )
+                };
+                let v2 = unsafe { v2_out.assume_init() };
+
+                let mut v3_out = MaybeUninit::<T3>::uninit();
+                unsafe {
+                    raw3.invoke(
+                        iter.next().expect("tuple missing element 2"),
+                        v3_out.as_mut_ptr() as *mut u8,
+                    )
+                };
+                let v3 = unsafe { v3_out.assume_init() };
+
+                unsafe { std::ptr::write(out_ptr as *mut (T1, T2, T3), (v1, v2, v3)) };
+            });
+
+        Some(unsafe {
+            BasicGenerator::from_raw(RawParse {
+                schema,
+                call: writer,
+            })
+        })
     }
 }
 

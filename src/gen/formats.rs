@@ -1,4 +1,4 @@
-use super::{generate_raw, Generate};
+use super::{generate_from_schema, BasicGenerator, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
 
@@ -6,15 +6,13 @@ pub struct EmailGenerator;
 
 impl Generate<String> for EmailGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "email"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "email"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "email"}, |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -26,15 +24,13 @@ pub struct UrlGenerator;
 
 impl Generate<String> for UrlGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "url"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "url"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "url"}, |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -51,22 +47,24 @@ impl DomainGenerator {
         self.max_length = max;
         self
     }
+
+    fn build_schema(&self) -> Value {
+        cbor_map! {
+            "type" => "domain",
+            "max_length" => self.max_length as u64
+        }
+    }
 }
 
 impl Generate<String> for DomainGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&self.build_schema())
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {
-            "type" => "domain",
-            "max_length" => self.max_length as u64
-        })
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(self.build_schema(), |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -94,15 +92,9 @@ impl IpAddressGenerator {
         self.version = Some(IpVersion::V6);
         self
     }
-}
 
-impl Generate<String> for IpAddressGenerator {
-    fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
-    }
-
-    fn schema(&self) -> Option<Value> {
-        Some(match self.version {
+    fn build_schema(&self) -> Value {
+        match self.version {
             Some(IpVersion::V4) => cbor_map! {"type" => "ipv4"},
             Some(IpVersion::V6) => cbor_map! {"type" => "ipv6"},
             None => cbor_map! {
@@ -111,11 +103,19 @@ impl Generate<String> for IpAddressGenerator {
                     cbor_map!{"type" => "ipv6"}
                 ]
             },
-        })
+        }
+    }
+}
+
+impl Generate<String> for IpAddressGenerator {
+    fn generate(&self) -> String {
+        generate_from_schema(&self.build_schema())
     }
 
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(self.build_schema(), |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -127,15 +127,13 @@ pub struct DateGenerator;
 
 impl Generate<String> for DateGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "date"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "date"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "date"}, |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -147,15 +145,13 @@ pub struct TimeGenerator;
 
 impl Generate<String> for TimeGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "time"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "time"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(cbor_map! {"type" => "time"}, |raw| {
+            super::deserialize_value(raw)
+        }))
     }
 }
 
@@ -167,15 +163,14 @@ pub struct DateTimeGenerator;
 
 impl Generate<String> for DateTimeGenerator {
     fn generate(&self) -> String {
-        self.parse_raw(generate_raw(&self.schema().unwrap()))
+        generate_from_schema(&cbor_map! {"type" => "datetime"})
     }
 
-    fn schema(&self) -> Option<Value> {
-        Some(cbor_map! {"type" => "datetime"})
-    }
-
-    fn parse_raw(&self, raw: Value) -> String {
-        super::deserialize_value(raw)
+    fn as_basic(&self) -> Option<BasicGenerator<'_, String>> {
+        Some(BasicGenerator::new(
+            cbor_map! {"type" => "datetime"},
+            super::deserialize_value,
+        ))
     }
 }
 
