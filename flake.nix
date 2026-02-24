@@ -9,6 +9,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       hegel,
       ...
@@ -24,6 +25,24 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     in
     {
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          default = pkgs.rustPlatform.buildRustPackage {
+            pname = "hegel-rust";
+            version = "0.1.0";
+            src = ./.;
+            cargoLock.lockFile = ./Cargo.lock;
+            nativeBuildInputs = [
+              hegel.packages.${system}.default
+            ];
+          };
+        }
+      );
+
       devShells = forAllSystems (
         system:
         let
@@ -31,10 +50,10 @@
         in
         {
           default = pkgs.mkShell {
+            inputsFrom = [ self.packages.${system}.default ];
             buildInputs = [
               pkgs.cargo
               pkgs.rustc
-              hegel.packages.${system}.default
             ];
           };
         }
