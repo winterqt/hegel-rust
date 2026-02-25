@@ -111,7 +111,6 @@ impl ConjectureData {
         self.test_aborted.set(val);
     }
 
-
     #[doc(hidden)]
     pub fn in_composite(&self) -> bool {
         self.in_composite.get()

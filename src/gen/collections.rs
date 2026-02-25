@@ -221,8 +221,7 @@ where
                 while map.len() < len && attempts < max_attempts {
                     data.span_group(labels::MAP_ENTRY, || {
                         let key = self.keys.do_draw(data);
-                        map.entry(key)
-                            .or_insert_with(|| self.values.do_draw(data));
+                        map.entry(key).or_insert_with(|| self.values.do_draw(data));
                     });
                     attempts += 1;
                 }
