@@ -1,4 +1,4 @@
-use super::{labels, BasicGenerator, BoxedGenerator, ConjectureData, Generate};
+use super::{labels, BasicGenerator, BoxedGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::cbor_map;
 use ciborium::Value;
 use std::marker::PhantomData;
@@ -10,7 +10,7 @@ pub(crate) struct MappedToValue<T, G> {
 }
 
 impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G> {
-    fn do_draw(&self, data: &ConjectureData) -> Value {
+    fn do_draw(&self, data: &TestCaseData) -> Value {
         crate::cbor_helpers::cbor_serialize(&self.inner.do_draw(data))
     }
 
@@ -56,7 +56,7 @@ pub struct FixedDictGenerator<'a> {
 }
 
 impl<'a> Generate<Value> for FixedDictGenerator<'a> {
-    fn do_draw(&self, data: &ConjectureData) -> Value {
+    fn do_draw(&self, data: &TestCaseData) -> Value {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {

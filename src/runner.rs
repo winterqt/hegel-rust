@@ -1,4 +1,4 @@
-use crate::gen::{ConjectureData, CONJECTURE_DATA};
+use crate::gen::{TestCaseData, TEST_CASE_DATA};
 use crate::protocol::{Channel, Connection, HANDSHAKE_STRING, SUPPORTED_PROTOCOL_VERSIONS};
 use ciborium::Value;
 
@@ -516,11 +516,11 @@ fn run_test_case<F: FnMut()>(
     verbosity: Verbosity,
     got_interesting: &Arc<AtomicBool>,
 ) {
-    // Create ConjectureData on the stack and set thread-local pointer.
+    // Create TestCaseData on the stack and set thread-local pointer.
     // Note: we pass the channel directly (not cloned) so generators and mark_complete
     // share the same message ID sequence.
-    let data = ConjectureData::new(Arc::clone(connection), test_channel, verbosity, is_final);
-    CONJECTURE_DATA.with(|c| c.set(&data as *const ConjectureData));
+    let data = TestCaseData::new(Arc::clone(connection), test_channel, verbosity, is_final);
+    TEST_CASE_DATA.with(|c| c.set(&data as *const TestCaseData));
 
     // Run test in catch_unwind
     let result = catch_unwind(AssertUnwindSafe(test_fn));
@@ -597,7 +597,7 @@ fn run_test_case<F: FnMut()>(
     }
 
     // Clear thread-local pointer
-    CONJECTURE_DATA.with(|c| c.set(std::ptr::null()));
+    TEST_CASE_DATA.with(|c| c.set(std::ptr::null()));
 }
 
 /// Extract a message from a panic payload.

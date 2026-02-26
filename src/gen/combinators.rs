@@ -1,4 +1,4 @@
-use super::{integers, labels, BasicGenerator, ConjectureData, Generate};
+use super::{integers, labels, BasicGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
 use std::marker::PhantomData;
@@ -15,7 +15,7 @@ where
     G: Generate<T>,
     F: Fn(T) -> U + Send + Sync,
 {
-    fn do_draw(&self, data: &ConjectureData) -> U {
+    fn do_draw(&self, data: &TestCaseData) -> U {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {
@@ -42,7 +42,7 @@ where
     G2: Generate<U>,
     F: Fn(T) -> G2 + Send + Sync,
 {
-    fn do_draw(&self, data: &ConjectureData) -> U {
+    fn do_draw(&self, data: &TestCaseData) -> U {
         data.span_group(labels::FLAT_MAP, || {
             let intermediate = self.source.do_draw(data);
             let next_gen = (self.f)(intermediate);
@@ -62,7 +62,7 @@ where
     G: Generate<T>,
     F: Fn(&T) -> bool + Send + Sync,
 {
-    fn do_draw(&self, data: &ConjectureData) -> T {
+    fn do_draw(&self, data: &TestCaseData) -> T {
         for _ in 0..3 {
             if let Some(value) = data.discardable_span_group(labels::FILTER, || {
                 let value = self.source.do_draw(data);
@@ -107,7 +107,7 @@ impl<'a, T> Clone for BoxedGenerator<'a, T> {
 }
 
 impl<'a, T> Generate<T> for BoxedGenerator<'a, T> {
-    fn do_draw(&self, data: &ConjectureData) -> T {
+    fn do_draw(&self, data: &TestCaseData) -> T {
         self.inner.do_draw(data)
     }
 
@@ -129,7 +129,7 @@ pub struct SampledFromGenerator<T> {
 }
 
 impl<T: Clone + Send + Sync> Generate<T> for SampledFromGenerator<T> {
-    fn do_draw(&self, data: &ConjectureData) -> T {
+    fn do_draw(&self, data: &TestCaseData) -> T {
         crate::assume(!self.elements.is_empty());
 
         if let Some(basic) = self.as_basic() {
@@ -171,7 +171,7 @@ pub struct OneOfGenerator<'a, T> {
 }
 
 impl<'a, T> Generate<T> for OneOfGenerator<'a, T> {
-    fn do_draw(&self, data: &ConjectureData) -> T {
+    fn do_draw(&self, data: &TestCaseData) -> T {
         crate::assume(!self.generators.is_empty());
 
         if let Some(basic) = self.as_basic() {
@@ -271,7 +271,7 @@ impl<T, G> Generate<Option<T>> for OptionalGenerator<G, T>
 where
     G: Generate<T>,
 {
-    fn do_draw(&self, data: &ConjectureData) -> Option<T> {
+    fn do_draw(&self, data: &TestCaseData) -> Option<T> {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {

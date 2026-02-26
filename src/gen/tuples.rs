@@ -1,4 +1,4 @@
-use super::{labels, BasicGenerator, ConjectureData, Generate};
+use super::{labels, BasicGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
 use std::marker::PhantomData;
@@ -14,7 +14,7 @@ where
     G1: Generate<T1>,
     G2: Generate<T2>,
 {
-    fn do_draw(&self, data: &ConjectureData) -> (T1, T2) {
+    fn do_draw(&self, data: &TestCaseData) -> (T1, T2) {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {
@@ -74,7 +74,7 @@ where
     G2: Generate<T2>,
     G3: Generate<T3>,
 {
-    fn do_draw(&self, data: &ConjectureData) -> (T1, T2, T3) {
+    fn do_draw(&self, data: &TestCaseData) -> (T1, T2, T3) {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {

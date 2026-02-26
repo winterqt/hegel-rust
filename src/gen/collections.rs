@@ -1,4 +1,4 @@
-use super::{integers, labels, BasicGenerator, Collection, ConjectureData, Generate};
+use super::{integers, labels, BasicGenerator, Collection, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 use std::collections::{HashMap, HashSet};
@@ -47,7 +47,7 @@ impl<T, G> Generate<Vec<T>> for VecGenerator<G, T>
 where
     G: Generate<T>,
 {
-    fn do_draw(&self, data: &ConjectureData) -> Vec<T> {
+    fn do_draw(&self, data: &TestCaseData) -> Vec<T> {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {
@@ -122,7 +122,7 @@ where
     G: Generate<T>,
     T: Eq + Hash,
 {
-    fn do_draw(&self, data: &ConjectureData) -> HashSet<T> {
+    fn do_draw(&self, data: &TestCaseData) -> HashSet<T> {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {
@@ -203,7 +203,7 @@ where
     V: Generate<VT>,
     KT: Eq + std::hash::Hash,
 {
-    fn do_draw(&self, data: &ConjectureData) -> HashMap<KT, VT> {
+    fn do_draw(&self, data: &TestCaseData) -> HashMap<KT, VT> {
         if let Some(basic) = self.as_basic() {
             basic.do_draw(data)
         } else {

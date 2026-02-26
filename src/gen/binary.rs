@@ -1,4 +1,4 @@
-use super::{BasicGenerator, ConjectureData, Generate};
+use super::{BasicGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 
@@ -48,7 +48,7 @@ fn parse_binary(raw: Value) -> Vec<u8> {
 }
 
 impl Generate<Vec<u8>> for BinaryGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> Vec<u8> {
+    fn do_draw(&self, data: &TestCaseData) -> Vec<u8> {
         parse_binary(data.generate_raw(&self.build_schema()))
     }
 

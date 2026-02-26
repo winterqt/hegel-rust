@@ -59,14 +59,14 @@ static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
 });
 
 // ============================================================================
-// ConjectureData — per-test-case state
+// TestCaseData — per-test-case state
 // ============================================================================
 
 /// Per-test-case state, consolidating all thread-local state into one struct.
 ///
 /// This is an internal implementation detail. Do not use directly.
 #[doc(hidden)]
-pub struct ConjectureData {
+pub struct TestCaseData {
     #[allow(dead_code)]
     connection: Arc<Connection>,
     channel: Channel,
@@ -79,14 +79,14 @@ pub struct ConjectureData {
     in_composite: Cell<bool>,
 }
 
-impl ConjectureData {
+impl TestCaseData {
     pub(crate) fn new(
         connection: Arc<Connection>,
         channel: Channel,
         verbosity: Verbosity,
         is_last_run: bool,
     ) -> Self {
-        ConjectureData {
+        TestCaseData {
             connection,
             channel,
             span_depth: Cell::new(0),
@@ -249,16 +249,16 @@ impl ConjectureData {
 }
 
 thread_local! {
-    pub(crate) static CONJECTURE_DATA: Cell<*const ConjectureData> = const { Cell::new(std::ptr::null()) };
+    pub(crate) static TEST_CASE_DATA: Cell<*const TestCaseData> = const { Cell::new(std::ptr::null()) };
 }
 
-/// Get a reference to the current test case's ConjectureData.
+/// Get a reference to the current test case's TestCaseData.
 ///
 /// # Panics
-/// Panics if called outside of a test case (no active ConjectureData).
+/// Panics if called outside of a test case (no active TestCaseData).
 #[doc(hidden)]
-pub fn conjecture_data() -> &'static ConjectureData {
-    CONJECTURE_DATA.with(|c| {
+pub fn test_case_data() -> &'static TestCaseData {
+    TEST_CASE_DATA.with(|c| {
         let ptr = c.get();
         assert!(!ptr.is_null(), "no active test case");
         unsafe { &*ptr }
@@ -267,7 +267,7 @@ pub fn conjecture_data() -> &'static ConjectureData {
 
 /// Print a note message for the final failing test case.
 pub fn note(message: &str) {
-    let data = conjecture_data();
+    let data = test_case_data();
     if data.is_last_run() {
         eprintln!("{}", message);
     }
@@ -321,7 +321,7 @@ pub fn deserialize_value<T: serde::de::DeserializeOwned>(raw: Value) -> T {
 /// ```ignore
 /// use hegel::gen::Collection;
 ///
-/// let data = hegel::gen::conjecture_data();
+/// let data = hegel::gen::test_case_data();
 /// let mut coll = Collection::new("my_list", 0, None);
 /// let mut result = Vec::new();
 /// while coll.more(data) {
@@ -353,7 +353,7 @@ impl Collection {
     }
 
     /// Ensure the server-side collection is initialized, returning the server name.
-    fn ensure_initialized(&mut self, data: &ConjectureData) -> &str {
+    fn ensure_initialized(&mut self, data: &TestCaseData) -> &str {
         if self.server_name.is_none() {
             let mut payload = cbor_map! {
                 "name" => self.base_name.as_str(),
@@ -385,7 +385,7 @@ impl Collection {
     ///
     /// On the first call, this lazily creates the server-side collection.
     /// Returns `false` when the collection has reached its target size.
-    pub fn more(&mut self, data: &ConjectureData) -> bool {
+    pub fn more(&mut self, data: &TestCaseData) -> bool {
         if self.finished {
             return false;
         }
@@ -415,7 +415,7 @@ impl Collection {
     ///
     /// This is useful for unique collections where a generated element
     /// turned out to be a duplicate.
-    pub fn reject(&mut self, data: &ConjectureData, why: Option<&str>) {
+    pub fn reject(&mut self, data: &TestCaseData, why: Option<&str>) {
         if self.finished {
             return;
         }
@@ -462,7 +462,7 @@ pub mod labels {
 /// Combinators like `map()` compose BasicGenerators by chaining parse functions
 /// while preserving the schema.
 pub mod basic {
-    use super::ConjectureData;
+    use super::TestCaseData;
     use ciborium::Value;
     use std::marker::PhantomData;
 
@@ -499,7 +499,7 @@ pub mod basic {
         /// Generate a value by sending the schema to the server and parsing the response.
         ///
         /// This is a convenience for `self.parse_raw(data.generate_raw(self.schema()))`.
-        pub fn do_draw(&self, data: &ConjectureData) -> T {
+        pub fn do_draw(&self, data: &TestCaseData) -> T {
             self.parse_raw(data.generate_raw(self.schema()))
         }
 
@@ -528,7 +528,7 @@ pub mod basic {
 /// [`BasicGenerator`] for server-based generation via `as_basic()`.
 pub trait Generate<T>: Send + Sync {
     /// Generate a value. This is an internal method — use [`draw()`] instead.
-    fn do_draw(&self, data: &ConjectureData) -> T;
+    fn do_draw(&self, data: &TestCaseData) -> T;
 
     /// Return a BasicGenerator for schema-based generation, if possible.
     ///
@@ -609,7 +609,7 @@ pub trait Generate<T>: Send + Sync {
 
 // Implement Generate for references to generators
 impl<T, G: Generate<T>> Generate<T> for &G {
-    fn do_draw(&self, data: &ConjectureData) -> T {
+    fn do_draw(&self, data: &TestCaseData) -> T {
         (*self).do_draw(data)
     }
 
@@ -635,7 +635,7 @@ impl<T, G: Generate<T>> Generate<T> for &G {
 /// # });
 /// ```
 pub fn draw<T: std::fmt::Debug>(gen: &impl Generate<T>) -> T {
-    let data = conjecture_data();
+    let data = test_case_data();
     assert!(
         !data.in_composite(),
         "cannot call draw() inside compose!(). Use the draw parameter instead."

@@ -1,4 +1,4 @@
-use super::{BasicGenerator, ConjectureData, Generate};
+use super::{BasicGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_map, map_insert};
 use ciborium::Value;
 
@@ -33,7 +33,7 @@ impl TextGenerator {
 }
 
 impl Generate<String> for TextGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&self.build_schema())
     }
 
@@ -73,7 +73,7 @@ impl RegexGenerator {
 }
 
 impl Generate<String> for RegexGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&self.build_schema())
     }
 

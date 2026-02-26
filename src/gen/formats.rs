@@ -1,11 +1,11 @@
-use super::{BasicGenerator, ConjectureData, Generate};
+use super::{BasicGenerator, TestCaseData, Generate};
 use crate::cbor_helpers::{cbor_array, cbor_map};
 use ciborium::Value;
 
 pub struct EmailGenerator;
 
 impl Generate<String> for EmailGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&cbor_map! {"type" => "email"})
     }
 
@@ -23,7 +23,7 @@ pub fn emails() -> EmailGenerator {
 pub struct UrlGenerator;
 
 impl Generate<String> for UrlGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&cbor_map! {"type" => "url"})
     }
 
@@ -57,7 +57,7 @@ impl DomainGenerator {
 }
 
 impl Generate<String> for DomainGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&self.build_schema())
     }
 
@@ -108,7 +108,7 @@ impl IpAddressGenerator {
 }
 
 impl Generate<String> for IpAddressGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&self.build_schema())
     }
 
@@ -126,7 +126,7 @@ pub fn ip_addresses() -> IpAddressGenerator {
 pub struct DateGenerator;
 
 impl Generate<String> for DateGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&cbor_map! {"type" => "date"})
     }
 
@@ -144,7 +144,7 @@ pub fn dates() -> DateGenerator {
 pub struct TimeGenerator;
 
 impl Generate<String> for TimeGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&cbor_map! {"type" => "time"})
     }
 
@@ -162,7 +162,7 @@ pub fn times() -> TimeGenerator {
 pub struct DateTimeGenerator;
 
 impl Generate<String> for DateTimeGenerator {
-    fn do_draw(&self, data: &ConjectureData) -> String {
+    fn do_draw(&self, data: &TestCaseData) -> String {
         data.generate_from_schema(&cbor_map! {"type" => "datetime"})
     }
 

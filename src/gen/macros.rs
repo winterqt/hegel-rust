@@ -78,7 +78,7 @@ macro_rules! derive_generator {
                 }
 
                 impl<'a> $crate::gen::Generate<$struct_name> for [<$struct_name Generator>]<'a> {
-                    fn do_draw(&self, __data: &$crate::gen::ConjectureData) -> $struct_name {
+                    fn do_draw(&self, __data: &$crate::gen::TestCaseData) -> $struct_name {
                         use $crate::gen::Generate;
                         $struct_name {
                             $($field_name: self.$field_name.do_draw(__data),)*

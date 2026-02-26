@@ -270,7 +270,7 @@ pub(crate) fn derive_enum_generate(input: &DeriveInput, data: &syn::DataEnum) ->
         // All-unit enum: use sampled_from schema
         quote! {
             impl hegel::gen::Generate<#enum_name> for #generator_name {
-                fn do_draw(&self, __data: &hegel::gen::ConjectureData) -> #enum_name {
+                fn do_draw(&self, __data: &hegel::gen::TestCaseData) -> #enum_name {
                     let basic = self.as_basic().unwrap();
                     basic.parse_raw(__data.generate_raw(basic.schema()))
                 }
@@ -363,7 +363,7 @@ pub(crate) fn derive_enum_generate(input: &DeriveInput, data: &syn::DataEnum) ->
 
         quote! {
             impl<'a> hegel::gen::Generate<#enum_name> for #generator_name<'a> {
-                fn do_draw(&self, __data: &hegel::gen::ConjectureData) -> #enum_name {
+                fn do_draw(&self, __data: &hegel::gen::TestCaseData) -> #enum_name {
                     use hegel::gen::Generate;
                     if let Some(basic) = self.as_basic() {
                         basic.parse_raw(__data.generate_raw(basic.schema()))
@@ -629,7 +629,7 @@ fn generate_variant_generator(
                 }
 
                 impl<'a> hegel::gen::Generate<#enum_name> for #variant_generator_name<'a> {
-                    fn do_draw(&self, __data: &hegel::gen::ConjectureData) -> #enum_name {
+                    fn do_draw(&self, __data: &hegel::gen::TestCaseData) -> #enum_name {
                         use hegel::gen::Generate;
                         if let Some(basic) = self.as_basic() {
                             basic.parse_raw(__data.generate_raw(basic.schema()))
@@ -720,7 +720,7 @@ fn generate_variant_generator(
                 }
 
                 impl<'a> hegel::gen::Generate<#enum_name> for #variant_generator_name<'a> {
-                    fn do_draw(&self, __data: &hegel::gen::ConjectureData) -> #enum_name {
+                    fn do_draw(&self, __data: &hegel::gen::TestCaseData) -> #enum_name {
                         use hegel::gen::Generate;
                         if let Some(basic) = self.as_basic() {
                             basic.parse_raw(__data.generate_raw(basic.schema()))
@@ -874,7 +874,7 @@ fn generate_variant_generator(
                 }
 
                 impl<'a> hegel::gen::Generate<#enum_name> for #variant_generator_name<'a> {
-                    fn do_draw(&self, __data: &hegel::gen::ConjectureData) -> #enum_name {
+                    fn do_draw(&self, __data: &hegel::gen::TestCaseData) -> #enum_name {
                         use hegel::gen::Generate;
                         if let Some(basic) = self.as_basic() {
                             basic.parse_raw(__data.generate_raw(basic.schema()))
