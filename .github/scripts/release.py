@@ -91,8 +91,7 @@ def check(base_ref: str) -> None:
         empty = "*" + " " * (width - 2) + "*"
         inner = "\n".join("*" + l.center(width - 2) + "*" for l in lines)
         box = f"\n{border}\n{empty}\n{empty}\n{inner}\n{empty}\n{empty}\n{border}\n"
-        print(box, flush=True)
-        raise ValueError(lines[0])
+        raise ValueError(box)
 
     # perform validation of RELEASE.md
     parse_release_file(release_file)
