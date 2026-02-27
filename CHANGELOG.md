@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 - 2026-02-27
+
+Add support for `hegel::arrays` and `hegel::tuples3` through `hegel::tuples12`.
+
+
 ## 0.1.7 - 2026-02-27
 
 Add the `#[hegel::test]` macro as an ergonomic way to declare a hegel test.
