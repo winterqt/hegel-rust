@@ -44,7 +44,7 @@ pub(crate) use strings::TextGenerator;
 
 use ciborium::Value;
 
-use crate::cbor_helpers::{cbor_map, map_insert};
+use crate::cbor_utils::{cbor_map, map_insert};
 
 use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;

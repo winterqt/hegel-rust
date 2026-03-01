@@ -208,7 +208,7 @@
 //!
 //! Set verbosity to [`Verbosity::Debug`] to enable debug logging of requests/responses.
 
-pub(crate) mod cbor_helpers;
+pub(crate) mod cbor_utils;
 pub mod control;
 pub mod generators;
 pub(crate) mod protocol;

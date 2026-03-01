@@ -1,5 +1,5 @@
 use super::{labels, BasicGenerator, BoxedGenerator, Generate, TestCaseData};
-use crate::cbor_helpers::cbor_map;
+use crate::cbor_utils::cbor_map;
 use ciborium::Value;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -11,7 +11,7 @@ pub(crate) struct MappedToValue<T, G> {
 
 impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G> {
     fn do_draw(&self, data: &TestCaseData) -> Value {
-        crate::cbor_helpers::cbor_serialize(&self.inner.do_draw(data))
+        crate::cbor_utils::cbor_serialize(&self.inner.do_draw(data))
     }
 
     fn as_basic(&self) -> Option<BasicGenerator<'_, Value>> {
@@ -19,7 +19,7 @@ impl<T: serde::Serialize, G: Generate<T>> Generate<Value> for MappedToValue<T, G
         let schema = inner_basic.schema().clone();
         Some(BasicGenerator::new(schema, move |raw| {
             let t_val = inner_basic.parse_raw(raw);
-            crate::cbor_helpers::cbor_serialize(&t_val)
+            crate::cbor_utils::cbor_serialize(&t_val)
         }))
     }
 }

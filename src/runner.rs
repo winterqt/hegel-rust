@@ -3,7 +3,7 @@ use crate::generators::TestCaseData;
 use crate::protocol::{Channel, Connection, HANDSHAKE_STRING};
 use ciborium::Value;
 
-use crate::cbor_helpers::{as_bool, as_text, as_u64, cbor_map, map_get};
+use crate::cbor_utils::{as_bool, as_text, as_u64, cbor_map, map_get};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::cell::RefCell;
 use std::os::unix::net::UnixStream;

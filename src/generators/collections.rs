@@ -1,5 +1,5 @@
 use super::{integers, labels, BasicGenerator, Collection, Generate, TestCaseData};
-use crate::cbor_helpers::{cbor_map, map_insert};
+use crate::cbor_utils::{cbor_map, map_insert};
 use ciborium::Value;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;

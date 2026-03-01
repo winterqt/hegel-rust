@@ -6,7 +6,7 @@ use ciborium::Value;
 
 use super::connection::Connection;
 use super::packet::Packet;
-use crate::cbor_helpers::{as_text, map_get};
+use crate::cbor_utils::{as_text, map_get};
 
 const CLOSE_CHANNEL_PAYLOAD: &[u8] = &[0xFE];
 const CLOSE_CHANNEL_MESSAGE_ID: u32 = (1u32 << 31) - 1;
