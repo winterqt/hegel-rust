@@ -110,7 +110,6 @@ pub enum HegelRandom {
     True(Box<StdRng>),
 }
 
-
 impl RngCore for HegelRandom {
     fn next_u32(&mut self) -> u32 {
         match self {
