@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.9 - 2026-03-01
+
+Better error message when using `assume()`, `note()`, or `draw()` outside of a Hegel test.
+
+
 ## 0.1.8 - 2026-02-27
 
 Add support for `hegel::arrays` and `hegel::tuples3` through `hegel::tuples12`.
