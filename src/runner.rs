@@ -220,7 +220,13 @@ fn find_hegel() -> String {
     if let Ok(override_path) = std::env::var(HEGEL_CMD_ENV) {
         return override_path;
     }
-    ensure_hegel_installed().unwrap_or_else(|e| panic!("Failed to ensure hegel: {e}"))
+    static HEGEL_PATH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HEGEL_PATH
+        .get_or_init(|| {
+            ensure_hegel_installed()
+                .unwrap_or_else(|e| panic!("Failed to ensure hegel: {e}"))
+        })
+        .clone()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
