@@ -206,7 +206,6 @@ jobs:
     if: github.event_name == 'push' && github.repository == 'antithesishq/hegel-rust'
     needs: [lint, test, test-all-features, docs, coverage, conformance, nix]
     runs-on: ubuntu-latest
-    environment: release
     permissions:
       contents: write
     steps:
