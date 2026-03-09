@@ -150,39 +150,23 @@ fn init_panic_hook() {
     });
 }
 
-fn is_hegel_cached(version_file: &str, hegel_bin: &str) -> bool {
-    if let Ok(cached) = std::fs::read_to_string(version_file) {
-        cached.trim() == HEGEL_SERVER_VERSION && std::path::Path::new(hegel_bin).is_file()
-    } else {
-        false
-    }
-}
-
 fn ensure_hegel_installed() -> Result<String, String> {
-    use fs2::FileExt;
+    static INSTALL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = INSTALL_LOCK.lock().unwrap();
 
     let venv_dir = format!("{HEGEL_SERVER_DIR}/venv");
     let version_file = format!("{venv_dir}/hegel-version");
     let hegel_bin = format!("{venv_dir}/bin/hegel");
 
-    // Fast path: check cached version without lock
-    if is_hegel_cached(&version_file, &hegel_bin) {
-        return Ok(hegel_bin);
+    // Check cached version
+    if let Ok(cached) = std::fs::read_to_string(&version_file) {
+        if cached.trim() == HEGEL_SERVER_VERSION && std::path::Path::new(&hegel_bin).is_file() {
+            return Ok(hegel_bin);
+        }
     }
 
-    // Slow path: acquire exclusive file lock, then double-check
     std::fs::create_dir_all(HEGEL_SERVER_DIR)
         .map_err(|e| format!("Failed to create {HEGEL_SERVER_DIR}: {e}"))?;
-    let lock_file = std::fs::File::create(format!("{HEGEL_SERVER_DIR}/.lock"))
-        .map_err(|e| format!("Failed to create lock file: {e}"))?;
-    lock_file
-        .lock_exclusive()
-        .map_err(|e| format!("Failed to acquire install lock: {e}"))?;
-
-    // Re-check after acquiring lock (another process may have installed)
-    if is_hegel_cached(&version_file, &hegel_bin) {
-        return Ok(hegel_bin);
-    }
 
     let install_log = format!("{HEGEL_SERVER_DIR}/install.log");
     let log_file = std::fs::File::create(&install_log)
@@ -230,7 +214,6 @@ fn ensure_hegel_installed() -> Result<String, String> {
     std::fs::write(&version_file, HEGEL_SERVER_VERSION)
         .map_err(|e| format!("Failed to write version file: {e}"))?;
 
-    // Lock is released when lock_file is dropped
     Ok(hegel_bin)
 }
 
