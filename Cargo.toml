@@ -19,6 +19,7 @@ rand = { version = "0.9", optional = true }
 # Binary protocol support
 ciborium = "0.2"
 crc32fast = "1.4"
+fs2 = "0.4"
 
 [dev-dependencies]
 regex = "1.0"
