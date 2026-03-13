@@ -2,6 +2,7 @@ mod common;
 
 use common::utils::check_can_generate_examples;
 use hegel::generators::default;
+use hegel::TestCase;
 use std::collections::HashMap;
 
 #[test]
@@ -88,5 +89,5 @@ fn test_default_can_infer_through_draw(tc: TestCase) {
     // This doesn't test anything much at runtime. We are checking
     // that the type checker can infer the type parameter to default
     // rather than forcing us to write this as default::<i32>
-    let _: i32 = tc.draw(generators::default());
+    let _: i32 = tc.draw(default());
 }
