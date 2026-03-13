@@ -82,3 +82,11 @@ fn test_default_nested() {
     check_can_generate_examples(default::<Option<(i32, String)>>());
     check_can_generate_examples(default::<[Option<i32>; 4]>());
 }
+
+#[hegel::test]
+fn test_default_can_infer_through_draw(tc: TestCase) {
+    // This doesn't test anything much at runtime. We are checking
+    // that the type checker can infer the type parameter to default
+    // rather than forcing us to write this as default::<i32>
+    let _: i32 = tc.draw(generators::default());
+}
