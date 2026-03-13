@@ -482,14 +482,14 @@ where
                 .expect("Failed to receive event");
 
             let event: Value = cbor_decode(&event_payload);
-            let event_type = map_get(&event, "event").and_then(as_text);
+            let event_type = map_get(&event, "event").and_then(as_text).expect("Expected event in payload");
 
             if verbosity == Verbosity::Debug {
                 eprintln!("Received event: {:?}", event);
             }
 
             match event_type {
-                Some("test_case") => {
+                "test_case" => {
                     let channel_id = map_get(&event, "channel_id")
                         .and_then(as_u64)
                         .expect("Missing channel id") as u32;
@@ -510,8 +510,7 @@ where
                         &got_interesting,
                     );
                 }
-                Some("test_done") => {
-                    // Ack the test_done event
+                "test_done" => {
                     let ack_true = cbor_map! {"result" => true};
                     test_channel
                         .write_reply(event_id, cbor_encode(&ack_true))
@@ -520,10 +519,7 @@ where
                     break;
                 }
                 _ => {
-                    // Unknown event, just ack it
-                    test_channel
-                        .write_reply(event_id, cbor_encode(&ack_null))
-                        .expect("Failed to ack event");
+                    panic!("unknown event: {}", event_type);
                 }
             }
         }

@@ -3,7 +3,7 @@ name = "hegel-derive"
 version = "0.2.5"
 edition = "2021"
 rust-version = "1.68"
-description = "Derive macros for the Hegel property-based testing SDK"
+description = "Derive macros for the Hegel property-based testing library"
 license = "MIT"
 
 [lib]

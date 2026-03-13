@@ -9,7 +9,7 @@ Add Hegel to your `Cargo.toml` as a dev dependency:
 hegel = { git = "https://github.com/hegeldev/hegel-rust" }
 ```
 
-The SDK requires [`uv`](https://github.com/astral-sh/uv) installed and on your PATH.
+The library requires [`uv`](https://github.com/astral-sh/uv) installed and on your PATH.
 
 ## Write your first test
 
@@ -313,7 +313,7 @@ fn test_with_notes() {
 
 ## Guiding generation with target()
 
-> `target()` is not yet available in the Rust SDK. In other Hegel SDKs,
+> `target()` is not yet available in Hegel for Rust. In other Hegel libraries,
 > `target(value, label)` guides the generator toward higher values of a
 > numeric metric, useful for finding worst-case inputs. It is planned for
 > a future release.

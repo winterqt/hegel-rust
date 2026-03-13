@@ -1,5 +1,5 @@
 {
-  description = "Hegel Rust SDK";
+  description = "Hegel for Rust";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
