@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is the Rust SDK for Hegel, a universal property-based testing framework. The SDK communicates with a Python server (powered by Hypothesis) via Unix sockets to generate test data.
+This is the Rust library for Hegel, a universal property-based testing framework. The library communicates with a Python server (powered by Hypothesis) via Unix sockets to generate test data.
 
 ## Build & Test Commands
 
@@ -39,15 +39,15 @@ MSRV is 1.86 (enforced in CI and Cargo.toml). If you bump it, also bump `ci.yml`
 
 ### How It Works
 
-The SDK creates a Unix socket path and spawns the `hegel` CLI as a subprocess. The server binds to the socket and listens for the SDK to connect as a client. A single persistent connection is maintained for the program run, supporting multiple test executions.
+The library creates a Unix socket path and spawns the `hegel` CLI as a subprocess. The server binds to the socket and listens for the client to connect. A single persistent connection is maintained for the program run, supporting multiple test executions.
 
 ### Protocol
 
 CBOR-encoded binary protocol over multiplexed channels. For each test:
-1. SDK sends `run_test` request on control channel (channel 0)
+1. Client sends `run_test` request on control channel (channel 0)
 2. Server sends `test_case` events with channel IDs for each test case
-3. SDK runs the test function, sending `generate`/`start_span`/`stop_span` requests on the test channel
-4. SDK sends `mark_complete` with status (VALID, INVALID, or INTERESTING)
+3. Client runs the test function, sending `generate`/`start_span`/`stop_span` requests on the test channel
+4. Client sends `mark_complete` with status (VALID, INVALID, or INTERESTING)
 5. After all test cases, server sends `test_done` with results
 
 ### Generate Trait and BasicGenerator

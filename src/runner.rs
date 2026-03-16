@@ -17,7 +17,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.1, 0.4);
-const HEGEL_SERVER_VERSION: &str = "v0.4.0";
+const HEGEL_SERVER_VERSION: &str = "0.1.0";
 const HEGEL_SERVER_COMMAND_ENV: &str = "HEGEL_SERVER_COMMAND";
 const HEGEL_SERVER_DIR: &str = ".hegel";
 static HEGEL_SERVER_COMMAND: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -199,7 +199,7 @@ fn ensure_hegel_installed() -> Result<String, String> {
             "install",
             "--python",
             &python_path,
-            &format!("hegel @ git+https://github.com/hegeldev/hegel-core@{HEGEL_SERVER_VERSION}"),
+            &format!("hegel-core=={HEGEL_SERVER_VERSION}"),
         ])
         .stderr(log_file.try_clone().unwrap())
         .stdout(log_file)
@@ -489,14 +489,16 @@ where
                 .expect("Failed to receive event");
 
             let event: Value = cbor_decode(&event_payload);
-            let event_type = map_get(&event, "event").and_then(as_text);
+            let event_type = map_get(&event, "event")
+                .and_then(as_text)
+                .expect("Expected event in payload");
 
             if verbosity == Verbosity::Debug {
                 eprintln!("Received event: {:?}", event);
             }
 
             match event_type {
-                Some("test_case") => {
+                "test_case" => {
                     let channel_id = map_get(&event, "channel_id")
                         .and_then(as_u64)
                         .expect("Missing channel id") as u32;
@@ -517,8 +519,7 @@ where
                         &got_interesting,
                     );
                 }
-                Some("test_done") => {
-                    // Ack the test_done event
+                "test_done" => {
                     let ack_true = cbor_map! {"result" => true};
                     test_channel
                         .write_reply(event_id, cbor_encode(&ack_true))
@@ -527,10 +528,7 @@ where
                     break;
                 }
                 _ => {
-                    // Unknown event, just ack it
-                    test_channel
-                        .write_reply(event_id, cbor_encode(&ack_null))
-                        .expect("Failed to ack event");
+                    panic!("unknown event: {}", event_type);
                 }
             }
         }
