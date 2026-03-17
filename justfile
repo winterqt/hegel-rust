@@ -35,17 +35,6 @@ coverage:
     # requires cargo-llvm-cov and llvm-tools-preview
     RUST_BACKTRACE=1 cargo llvm-cov --all-features --fail-under-lines 30 --show-missing-lines
 
-update-hegel-core-version:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    version=$(curl -s https://pypi.org/pypi/hegel-core/json | jq -r '.info.version')
-    sed -i '' "s/^const HEGEL_SERVER_VERSION: &str = \".*\"/const HEGEL_SERVER_VERSION: \&str = \"${version}\"/" src/runner.rs
-    sed -i '' "s/refs\/tags\/.*\";/refs\/tags\/v${version}\";/" nix/flake.nix
-    @which nix && (nix --extra-experimental-features "nix-command flakes" flake lock ./nix) || true
-    echo "Updated HEGEL_SERVER_VERSION to ${version}"
-    # Clear cached install so the next test run picks up the new version
-    rm -rf .hegel/venv
-
 build-conformance:
     cargo build --release --manifest-path tests/conformance/rust/Cargo.toml
 

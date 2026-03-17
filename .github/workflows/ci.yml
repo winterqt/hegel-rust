@@ -246,15 +246,14 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         run: |
           VERSION=$(grep '^version' hegel-macros/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
-          echo "Waiting for hegeltest-macros $VERSION to appear on crates.io..."
+          echo "waiting for hegeltest-macros $VERSION to appear on crates.io..."
           for i in $(seq 1 60); do
             if cargo search hegeltest-macros | grep -q "\"$VERSION\""; then
-              echo "Found!"
               exit 0
             fi
-            sleep 5
+            sleep 3
           done
-          echo "Timed out waiting for crates.io index"
+          echo "Timed out waiting for hegeltest-macros to appear on Crates.io"
           exit 1
 
       - name: Publish hegeltest
