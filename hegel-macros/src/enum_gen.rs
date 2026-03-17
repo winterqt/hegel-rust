@@ -59,7 +59,7 @@ fn classify_variant(variant: &Variant) -> VariantKind<'_> {
 }
 
 /// Extract all field types from a variant.
-fn variant_field_types<'a>(variant: &'a Variant) -> Vec<&'a syn::Type> {
+fn variant_field_types(variant: &Variant) -> Vec<&syn::Type> {
     match classify_variant(variant) {
         VariantKind::Named { field_types, .. } | VariantKind::TupleMultiple { field_types } => {
             field_types
