@@ -13,7 +13,7 @@ use crate::generators::value;
 // test case parameter.
 #[diagnostic::on_unimplemented(
     message = "Functions marked with #[composite] must have a first parameter of type TestCase.",
-    label = "This type does not match `TestCase`.",
+    label = "This type does not match `TestCase`."
 )]
 pub trait __IsTestCase {}
 

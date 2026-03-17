@@ -4,7 +4,8 @@ use common::project::TempRustProject;
 use hegel::TestCase;
 use hegel::generators::integers;
 
-const MISSING_TEST_CASE_PARAMETER: &str = "Functions marked with #[composite] must have a first parameter of type TestCase.";
+const MISSING_TEST_CASE_PARAMETER: &str =
+    "Functions marked with #[composite] must have a first parameter of type TestCase.";
 const MISSING_COMPOSITE_RETURN_TYPE: &str =
     "Functions marked with #[composite] must have an explicit return type.";
 

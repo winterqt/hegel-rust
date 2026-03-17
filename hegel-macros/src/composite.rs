@@ -2,9 +2,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{FnArg, ItemFn, ReturnType, parse2, parse_quote};
+use syn::{FnArg, ItemFn, ReturnType, parse_quote, parse2};
 
-const MISSING_TEST_CASE_PARAMETER: &str = "Functions marked with #[composite] must have a first parameter of type TestCase.";
+const MISSING_TEST_CASE_PARAMETER: &str =
+    "Functions marked with #[composite] must have a first parameter of type TestCase.";
 const MISSING_COMPOSITE_RETURN_TYPE: &str =
     "Functions marked with #[composite] must have an explicit return type.";
 
@@ -46,9 +47,12 @@ pub fn expand_composite(mut f: ItemFn) -> TokenStream {
         .cloned()
         .collect::<Punctuated<FnArg, Comma>>();
 
-    f.block.stmts.insert(0, parse_quote! {
-        ::hegel::__assert_is_test_case::< #tc_type >();
-    });
+    f.block.stmts.insert(
+        0,
+        parse_quote! {
+            ::hegel::__assert_is_test_case::< #tc_type >();
+        },
+    );
 
     let body = &f.block;
     let attributes = &f.attrs;
