@@ -83,10 +83,8 @@ fn main() {}
     let output = TempRustProject::new(code).run();
     assert!(!output.status.success());
     assert!(
-        output
-            .stderr
-            .contains("must define a first parameter of type TestCase"),
-        "Expected missing return type error, got: {}",
+        output.stderr.contains("must have type TestCase"),
+        "Expected TestCase parameter error, got: {}",
         output.stderr
     );
 }
