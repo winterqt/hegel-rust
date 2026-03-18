@@ -82,7 +82,7 @@ fn test_append_increases_length(tc: TestCase) {
 
 
 
-You can also define custom generators with the `compose` macro. 
+You can also define custom generators with the `composite` macro.
 
 For example, say you have a `Person` struct that we want to generate:
 
@@ -94,15 +94,16 @@ struct Person {
 }
 ```
 
-You can use `compose` to create a `Person` generator from this struct:
+You can use `composite` to create a `Person` generator for this struct:
 
 ```rust
-fn generate_person() {
-    hegel::compose!(|tc: TestCase| {
-        let age = tc.draw(integers::<i32>());
-        let name = tc.draw(strings()); 
-        Person { age, name };
-    })
+use hegel::generators::text;
+
+#[hegel::composite]
+fn generate_person(tc: TestCase) -> Person {
+    let age = tc.draw(integers::<i32>());
+    let name = tc.draw(text());
+    Person { age, name }
 }
 ```
 
@@ -119,17 +120,18 @@ To customize a generator further, you can make calls to `draw` in sequence that 
 You can then draw values for `driving_license` that depend on the `age` field:
 
 ```diff
- fn generate_person() {
-     hegel::compose!(|tc: TestCase| {
-         let age = tc.draw(integers::<i32>());
-         let name = tc.draw(strings()); 
-+        let driving_license = if (age >= 18) {
-+            tc.draw(booleans())
-+        } else {
-+             false
-+         };
-+         Person { age, name, driving_license };
-     })
++use hegel::generators::booleans;
+
+ fn generate_person(tc: TestCase) -> Person {
+     let age = tc.draw(integers::<i32>());
+     let name = tc.draw(text());
+ -   Person { age, name }
++    let driving_license = if age >= 18 {
++        tc.draw(booleans())
++    } else {
++         false
++    };
++    Person { age, name, driving_license }
  }
 ```
 
