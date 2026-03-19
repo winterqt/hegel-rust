@@ -48,15 +48,14 @@ This test asserts that any integer is less than 50, which is obviously incorrect
 
 To fix this test, you can constrain the integers you generate with the `min_value` and `max_value` functions:
 
-```diff
- #[hegel::test]
- fn test_bounded_integers_always_below_50(tc: TestCase) {
--    let n = tc.draw(integers::<i32>();
-+    let n = tc.draw(integers::<i32>()
-+        .min_value(0)
-+        .max_value(49));
-     assert!(n < 50);
- }
+```rust
+#[hegel::test]
+fn test_bounded_integers_always_below_50(tc: TestCase) {
+    let n = tc.draw(integers::<i32>()
+        .min_value(0)
+        .max_value(49));
+    assert!(n < 50);
+}
 ```
 
 Run the test again. It should now pass.
@@ -109,33 +108,32 @@ fn generate_person(tc: TestCase) -> Person {
 
 To customize a generator further, you can make calls to `draw` in sequence that use the results of previous `draw`s. For example, say that you extend the `Person` struct to include a `driving_license` boolean field:
 
-```diff
- struct Person {
-     age: i32,
-     name: String,
-+    driving_license: bool,
- }
+```rust
+#[derive(Debug)]
+struct Person {
+    age: i32,
+    name: String,
+    driving_license: bool,
+}
 ```
 
 You can then draw values for `driving_license` that depend on the `age` field:
 
-```diff
-+use hegel::generators::booleans;
+```rust
+use hegel::generators::booleans;
 
- fn generate_person(tc: TestCase) -> Person {
-     let age = tc.draw(integers::<i32>());
-     let name = tc.draw(text());
- -   Person { age, name }
-+    let driving_license = if age >= 18 {
-+        tc.draw(booleans())
-+    } else {
-+         false
-+    };
-+    Person { age, name, driving_license }
- }
+fn generate_person(tc: TestCase) -> Person {
+    let age = tc.draw(integers::<i32>());
+    let name = tc.draw(text());
+    let driving_license = if age >= 18 {
+        tc.draw(booleans())
+    } else {
+         false
+    };
+    Person { age, name, driving_license }
 ```
 
-## Automatically build generators for types
+<!-- ## Automatically build generators for types
 
 If you want a generator with no custom logic, as in the first `Person` example above, you can use the `derive` attribute to create a generator automatically:
 
@@ -145,7 +143,7 @@ struct Person {
     name: String,
     age: u32,
 }
-```
+``` -->
 
 ## Debug your failing test cases
 
