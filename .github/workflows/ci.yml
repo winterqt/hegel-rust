@@ -118,8 +118,8 @@ jobs:
         run: cargo docs-rs
 
   # test with the minimal versions of all our dependencies
-  test-minimal:
-    name: test-minimal
+  test-minimal-versions:
+    name: test-minimal-versions
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -218,7 +218,7 @@ jobs:
   release:
     name: release
     if: github.event_name == 'push' && github.repository == 'hegeldev/hegel-rust'
-    needs: [lint, test, test-all-features, test-minimal, docs, coverage, conformance, nix]
+    needs: [lint, test, test-all-features, test-minimal-versions, docs, coverage, conformance, nix]
     runs-on: ubuntu-latest
     permissions:
       contents: write
