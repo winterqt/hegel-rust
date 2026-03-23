@@ -17,7 +17,7 @@ hegeltest = "0.1.0"
 
 ## Write your first test
 
-You're now ready to write your first test. Add the following to your tests:
+You're now ready to write your first test. We'll use Cargo as a test runner for the purposes of this guide. Create a new test in the project's `tests/` directory:
 
 ```rust
 use hegel::TestCase;
@@ -30,9 +30,9 @@ fn test_integer_self_equality(tc: TestCase) {
 }
 ```
 
-Now run your tests. You should see that the test passes.
+Now run the test using `cargo test --test <filename>`. You should see that this test passes.
 
-Let's look at what's happening in more detail. The `#[hegel::test]` attribute runs your test many times (100, by default). The `test_integer_self_equality` function takes a `hegel::TestCase` parameter, which provides a `draw` method for drawing different values. For each test case, the function then asserts that an integer value should be equal to itself.
+Let's look at what's happening in more detail. The `#[hegel::test]` attribute runs your test many times (100, by default). The test function (in this case `test_integer_self_equality`) takes a `TestCase` parameter, which provides a `draw` method for drawing different values. This test draws a random integer and checks that it should be equal to itself.
 
 Next, try a test that fails:
 
@@ -78,11 +78,9 @@ fn test_append_increases_length(tc: TestCase) {
 }
 ```
 
-The test then generates more integers and pushes them to the vector, then tests that the resulting vector is longer than the initial one.
+This test checks that appending an element to a random vector of integers should always increase its length.
 
-You can also define custom generators with the `composite` macro.
-
-For example, say you have a `Person` struct that we want to generate:
+You can also define custom generators. For example, say you have a `Person` struct that we want to generate:
 
 ```rust
 #[derive(Debug)]
@@ -92,7 +90,7 @@ struct Person {
 }
 ```
 
-You can use `composite` to create a `Person` generator for this struct:
+You can use the `composite` macro to create a `Person` generator for this struct:
 
 ```rust
 use hegel::generators::text;
@@ -105,7 +103,7 @@ fn generate_person(tc: TestCase) -> Person {
 }
 ```
 
-To customize a generator further, you can make calls to `draw` in sequence that use the results of previous `draw`s. For example, say that you extend the `Person` struct to include a `driving_license` boolean field:
+Note that you can feed the results of a `draw` to subsequent calls. For example, say that you extend the `Person` struct to include a `driving_license` boolean field:
 
 ```rust
 #[derive(Debug)]
@@ -144,7 +142,7 @@ fn test_with_notes(tc: hegel::TestCase) {
     let x = tc.draw(generators::integers::<i64>());
     let y = tc.draw(generators::integers::<i64>());
     tc.note(&format!("x + y = {x + y}, y + x = {y + x}"));
-    assert_eq!(x + y, y + x); // commutativity -- always true
+    assert_eq!(x + y, y + x);
 }
 ```
 
