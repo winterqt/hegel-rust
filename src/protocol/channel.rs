@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use ciborium::Value;
@@ -17,6 +17,7 @@ pub struct Channel {
     next_message_id: AtomicU32,
     responses: Mutex<HashMap<u32, Vec<u8>>>,
     requests: Mutex<VecDeque<Packet>>,
+    closed: AtomicBool,
 }
 
 impl Channel {
@@ -27,11 +28,31 @@ impl Channel {
             next_message_id: AtomicU32::new(1),
             responses: Mutex::new(HashMap::new()),
             requests: Mutex::new(VecDeque::new()),
+            closed: AtomicBool::new(false),
+        }
+    }
+
+    /// Mark this channel as closed without sending a close packet.
+    ///
+    /// Used when the server has already closed its end (e.g. after overflow).
+    pub fn mark_closed(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+    }
+
+    fn check_closed(&self) -> std::io::Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "channel is closed",
+            ))
+        } else {
+            Ok(())
         }
     }
 
     /// Send a request and return the message ID.
     pub fn send_request(&self, payload: Vec<u8>) -> std::io::Result<u32> {
+        self.check_closed()?;
         let message_id = self.next_message_id.fetch_add(1, Ordering::SeqCst);
         let packet = Packet {
             channel: self.channel_id,
@@ -65,6 +86,8 @@ impl Channel {
                 }
             }
 
+            self.check_closed()?;
+
             // Process one message from the connection
             self.process_one_message()?;
         }
@@ -78,6 +101,8 @@ impl Channel {
                     return Ok((packet.message_id, packet.payload));
                 }
             }
+
+            self.check_closed()?;
 
             self.process_one_message()?;
         }
@@ -100,6 +125,7 @@ impl Channel {
     }
 
     pub fn close(&self) -> std::io::Result<()> {
+        self.mark_closed();
         let packet = Packet {
             channel: self.channel_id,
             message_id: CLOSE_CHANNEL_MESSAGE_ID,

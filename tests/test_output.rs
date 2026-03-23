@@ -22,16 +22,16 @@ fn test_failing_test_output() {
         .cargo_run(&[]);
 
     // For example:
+    //   Draw 1: 0
     //   thread 'main' (1) panicked at src/main.rs:7:9:
     //   intentional failure: 0
-    //   Draw 1: 0
     //   note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
     assert_matches_regex(
         &output.stderr,
         concat!(
+            r"Draw 1: -?\d+\n",
             r"thread '.*' \(\d+\) panicked at src/main\.rs:\d+:\d+:\n",
-            r"intentional failure: -?\d+\n",
-            r"Draw 1: -?\d+",
+            r"intentional failure: -?\d+",
         ),
     );
 }
@@ -50,9 +50,9 @@ fn test_failing_test_output_with_backtrace() {
         r"\{\{closure\}\}"
     };
     // For example:
+    //   Draw 1: 0
     //   thread 'main' (1) panicked at src/main.rs:7:9:
     //   intentional failure: 0
-    //   Draw 1: 0
     //   stack backtrace:
     //      0: __rustc::rust_begin_unwind
     //      1: core::panicking::panic_fmt
@@ -68,9 +68,9 @@ fn test_failing_test_output_with_backtrace() {
         &format!(
             concat!(
                 r"(?s)",
+                r"Draw 1: -?\d+\n",
                 r"thread 'main' \(\d+\) panicked at src/main\.rs:\d+:\d+:\n",
                 r"intentional failure: -?\d+\n",
-                r"Draw 1: -?\d+\n",
                 r"stack backtrace:\n",
                 r"\s+0: .*\n", // frame 0: panic machinery
                 r".*",
@@ -107,9 +107,9 @@ fn test_failing_test_output_with_full_backtrace() {
         &format!(
             concat!(
                 r"(?s)",
+                r"Draw 1: -?\d+\n",
                 r"thread 'main' \(\d+\) panicked at src/main\.rs:\d+:\d+:\n",
                 r"intentional failure: -?\d+\n",
-                r"Draw 1: -?\d+\n",
                 r"stack backtrace:\n",
                 r"\s+0: .*\n", // starts at frame 0
                 r".*",

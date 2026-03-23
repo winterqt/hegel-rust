@@ -46,16 +46,26 @@ static PROTOCOL_DEBUG: LazyLock<bool> = LazyLock::new(|| {
 
 pub(crate) const ASSUME_FAIL_STRING: &str = "__HEGEL_ASSUME_FAIL";
 
-pub(crate) struct TestCaseData {
+/// The sentinel string used to identify overflow/StopTest panics.
+/// Distinct from ASSUME_FAIL_STRING so callers can tell user-initiated
+/// assumption failures apart from server-initiated data exhaustion.
+pub(crate) const STOP_TEST_STRING: &str = "__HEGEL_STOP_TEST";
+
+pub(crate) struct TestCaseGlobalData {
     #[allow(dead_code)]
     connection: Arc<Connection>,
     channel: Channel,
-    span_depth: usize,
     verbosity: Verbosity,
     is_last_run: bool,
-    output: Vec<String>,
-    draw_count: usize,
     test_aborted: bool,
+}
+
+#[derive(Clone)]
+pub(crate) struct TestCaseLocalData {
+    span_depth: usize,
+    draw_count: usize,
+    indent: usize,
+    on_draw: Rc<dyn Fn(&str)>,
 }
 
 /// A handle to the current test case.
@@ -75,9 +85,18 @@ pub(crate) struct TestCaseData {
 ///     tc.note(&format!("x = {}", x));
 /// }
 /// ```
-#[derive(Clone)]
 pub struct TestCase {
-    inner: Rc<RefCell<TestCaseData>>,
+    global: Rc<RefCell<TestCaseGlobalData>>,
+    local: RefCell<TestCaseLocalData>,
+}
+
+impl Clone for TestCase {
+    fn clone(&self) -> Self {
+        TestCase {
+            global: self.global.clone(),
+            local: RefCell::new(self.local.borrow().clone()),
+        }
+    }
 }
 
 impl std::fmt::Debug for TestCase {
@@ -93,17 +112,25 @@ impl TestCase {
         verbosity: Verbosity,
         is_last_run: bool,
     ) -> Self {
+        let on_draw: Rc<dyn Fn(&str)> = if is_last_run {
+            Rc::new(|msg| eprintln!("{}", msg))
+        } else {
+            Rc::new(|_| {})
+        };
         TestCase {
-            inner: Rc::new(RefCell::new(TestCaseData {
+            global: Rc::new(RefCell::new(TestCaseGlobalData {
                 connection,
                 channel,
-                span_depth: 0,
                 verbosity,
                 is_last_run,
-                output: Vec::new(),
-                draw_count: 0,
                 test_aborted: false,
             })),
+            local: RefCell::new(TestCaseLocalData {
+                span_depth: 0,
+                draw_count: 0,
+                indent: 0,
+                on_draw,
+            }),
         }
     }
 
@@ -122,7 +149,7 @@ impl TestCase {
     /// ```
     pub fn draw<T: std::fmt::Debug>(&self, generator: impl Generator<T>) -> T {
         let value = generator.do_draw(self);
-        if self.inner.borrow().span_depth == 0 {
+        if self.local.borrow().span_depth == 0 {
             self.record_draw(&value);
         }
         value
@@ -171,39 +198,57 @@ impl TestCase {
     /// }
     /// ```
     pub fn note(&self, message: &str) {
-        if self.inner.borrow().is_last_run {
-            eprintln!("{}", message);
+        if self.global.borrow().is_last_run {
+            let indent = self.local.borrow().indent;
+            eprintln!("{:indent$}{}", "", message, indent = indent);
+        }
+    }
+
+    pub(crate) fn child(&self, extra_indent: usize) -> Self {
+        let local = self.local.borrow();
+        TestCase {
+            global: self.global.clone(),
+            local: RefCell::new(TestCaseLocalData {
+                span_depth: 0,
+                draw_count: 0,
+                indent: local.indent + extra_indent,
+                on_draw: local.on_draw.clone(),
+            }),
         }
     }
 
     fn record_draw<T: std::fmt::Debug>(&self, value: &T) {
-        let mut inner = self.inner.borrow_mut();
-        if !inner.is_last_run {
-            return;
-        }
-        inner.draw_count += 1;
-        let count = inner.draw_count;
-        inner.output.push(format!("Draw {}: {:?}", count, value));
+        let mut local = self.local.borrow_mut();
+        local.draw_count += 1;
+        let count = local.draw_count;
+        let indent = local.indent;
+        (local.on_draw)(&format!(
+            "{:indent$}Draw {}: {:?}",
+            "",
+            count,
+            value,
+            indent = indent
+        ));
     }
 
     #[doc(hidden)]
     pub fn start_span(&self, label: u64) {
-        self.inner.borrow_mut().span_depth += 1;
+        self.local.borrow_mut().span_depth += 1;
         if let Err(StopTestError) = self.send_request("start_span", &cbor_map! {"label" => label}) {
-            let mut inner = self.inner.borrow_mut();
-            assert!(inner.span_depth > 0);
-            inner.span_depth -= 1;
-            drop(inner);
-            self.assume(false);
+            let mut local = self.local.borrow_mut();
+            assert!(local.span_depth > 0);
+            local.span_depth -= 1;
+            drop(local);
+            panic!("{}", STOP_TEST_STRING);
         }
     }
 
     #[doc(hidden)]
     pub fn stop_span(&self, discard: bool) {
         {
-            let mut inner = self.inner.borrow_mut();
-            assert!(inner.span_depth > 0);
-            inner.span_depth -= 1;
+            let mut local = self.local.borrow_mut();
+            assert!(local.span_depth > 0);
+            local.span_depth -= 1;
         }
         let _ = self.send_request("stop_span", &cbor_map! {"discard" => discard});
     }
@@ -214,8 +259,16 @@ impl TestCase {
         command: &str,
         payload: &Value,
     ) -> Result<Value, StopTestError> {
-        let inner = self.inner.borrow();
-        let debug = *PROTOCOL_DEBUG || inner.verbosity == Verbosity::Debug;
+        let global = self.global.borrow();
+
+        // If a previous request already triggered overflow/StopTest, the server
+        // has closed this channel. Don't send another request—it would block.
+        // (The channel-level closed check is also enforced, but this gives a
+        // clean StopTestError instead of an io::Error.)
+        if global.test_aborted {
+            return Err(StopTestError);
+        }
+        let debug = *PROTOCOL_DEBUG || global.verbosity == Verbosity::Debug;
 
         let mut entries = vec![(
             Value::Text("command".to_string()),
@@ -234,8 +287,8 @@ impl TestCase {
             eprintln!("REQUEST: {:?}", request);
         }
 
-        let result = inner.channel.request_cbor(&request);
-        drop(inner);
+        let result = global.channel.request_cbor(&request);
+        drop(global);
 
         match result {
             Ok(response) => {
@@ -246,20 +299,29 @@ impl TestCase {
             }
             Err(e) => {
                 let error_msg = e.to_string();
-                if error_msg.contains("overflow") || error_msg.contains("StopTest") {
+                if error_msg.contains("overflow")
+                    || error_msg.contains("StopTest")
+                    || error_msg.contains("channel is closed")
+                {
                     if debug {
                         eprintln!("RESPONSE: StopTest/overflow");
                     }
-                    self.inner.borrow_mut().test_aborted = true;
+                    let mut global = self.global.borrow_mut();
+                    global.channel.mark_closed();
+                    global.test_aborted = true;
+                    drop(global);
                     Err(StopTestError)
                 } else if error_msg.contains("FlakyStrategyDefinition")
                     || error_msg.contains("FlakyReplay")
                 {
                     // Abort the test case; the server will report the flaky
                     // error in the test_done results, which runner.rs handles.
-                    self.inner.borrow_mut().test_aborted = true;
+                    let mut global = self.global.borrow_mut();
+                    global.channel.mark_closed();
+                    global.test_aborted = true;
+                    drop(global);
                     Err(StopTestError)
-                } else if self.inner.borrow().connection.server_has_exited() {
+                } else if self.global.borrow().connection.server_has_exited() {
                     panic!("{}", SERVER_CRASHED_MESSAGE);
                 } else {
                     panic!("Failed to communicate with Hegel: {}", e);
@@ -270,18 +332,14 @@ impl TestCase {
 
     // --- Methods for runner access ---
 
-    pub(crate) fn take_output(&self) -> Vec<String> {
-        std::mem::take(&mut self.inner.borrow_mut().output)
-    }
-
     pub(crate) fn test_aborted(&self) -> bool {
-        self.inner.borrow().test_aborted
+        self.global.borrow().test_aborted
     }
 
     pub(crate) fn send_mark_complete(&self, mark_complete: &Value) {
-        let inner = self.inner.borrow();
-        let _ = inner.channel.request_cbor(mark_complete);
-        let _ = inner.channel.close();
+        let global = self.global.borrow();
+        let _ = global.channel.request_cbor(mark_complete);
+        let _ = global.channel.close();
     }
 }
 
@@ -291,8 +349,7 @@ pub fn generate_raw(tc: &TestCase, schema: &Value) -> Value {
     match tc.send_request("generate", &cbor_map! {"schema" => schema.clone()}) {
         Ok(v) => v,
         Err(StopTestError) => {
-            tc.assume(false);
-            unreachable!()
+            panic!("{}", STOP_TEST_STRING);
         }
     }
 }
@@ -350,8 +407,7 @@ impl<'a> Collection<'a> {
             let response = match self.tc.send_request("new_collection", &payload) {
                 Ok(v) => v,
                 Err(StopTestError) => {
-                    self.tc.assume(false);
-                    unreachable!()
+                    panic!("{}", STOP_TEST_STRING);
                 }
             };
             let name = match response {
@@ -378,8 +434,7 @@ impl<'a> Collection<'a> {
             Ok(v) => v,
             Err(StopTestError) => {
                 self.finished = true;
-                self.tc.assume(false);
-                unreachable!()
+                panic!("{}", STOP_TEST_STRING);
             }
         };
         let result = match response {
