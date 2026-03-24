@@ -210,7 +210,65 @@ pub use test_case::{__IsTestCase, __assert_is_test_case, generate_from_schema, g
 // re-export public api
 #[doc(hidden)]
 pub use antithesis::TestLocation;
+
+/// Derive a generator for a struct or enum.
+///
+/// This implements [`DefaultGenerator`](generators::DefaultGenerator) for the type,
+/// allowing it to be used with [`default`](generators::default) via `default::<T>()`.
+///
+/// For structs, the generated generator has:
+/// - `<field>(generator)` - builder method to customize each field's generator
+///
+/// For enums, the generated generator has:
+/// - `default_<VariantName>()` - methods returning default variant generators
+/// - `<VariantName>(generator)` - builder methods to customize variant generation
+///
+/// # Struct Example
+///
+/// ```ignore
+/// use hegel::DefaultGenerator;
+/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
+///
+/// #[derive(DefaultGenerator)]
+/// struct Person {
+///     name: String,
+///     age: u32,
+/// }
+///
+/// #[hegel::test]
+/// fn generates_people(tc: hegel::TestCase) {
+///     let generator = generators::default::<Person>()
+///         .age(generators::integers::<u32>().min_value(0).max_value(120));
+///     let person: Person = tc.draw(generator);
+/// }
+/// ```
+///
+/// # Enum Example
+///
+/// ```ignore
+/// use hegel::DefaultGenerator;
+/// use hegel::generators::{self, DefaultGenerator as _, Generator as _};
+///
+/// #[derive(DefaultGenerator)]
+/// enum Status {
+///     Pending,
+///     Active { since: String },
+///     Error { code: i32, message: String },
+/// }
+///
+/// #[hegel::test]
+/// fn generates_statuses(tc: hegel::TestCase) {
+///     let generator = generators::default::<Status>()
+///         .Active(
+///             generators::default::<Status>()
+///                 .default_Active()
+///                 .since(generators::text().max_size(20))
+///         );
+///     let status: Status = tc.draw(generator);
+/// }
+/// ```
 pub use hegel_macros::DefaultGenerator;
+
 pub use hegel_macros::composite;
 
 /// Derive a [`StateMachine`](crate::stateful::StateMachine) implementation from an `impl` block.
