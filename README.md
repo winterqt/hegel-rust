@@ -33,3 +33,15 @@ fn test_addition_commutative(tc: TestCase) {
     assert_eq!(x + y, y + x);
 }
 ```
+
+Note that this test will fail! Addition panics on overflow. For a passing test, try:
+
+```rust
+#[hegel::test]
+fn test_wrapping_addition_commutative(tc: TestCase) {
+    let add = i32::wrapping_add;
+    let x = tc.draw(integers::<i32>());
+    let y = tc.draw(integers::<i32>());
+    assert_eq!(add(x, y), add(y, x));
+}
+```
