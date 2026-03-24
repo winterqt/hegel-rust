@@ -3,6 +3,7 @@ use crate::cbor_utils::{cbor_array, cbor_map};
 use ciborium::Value;
 use std::marker::PhantomData;
 
+/// Generator that picks from a fixed list of values. Created by [`sampled_from()`].
 pub struct SampledFromGenerator<T> {
     elements: Vec<T>,
 }
@@ -38,6 +39,9 @@ impl<T: Clone + Send + Sync> Generator<T> for SampledFromGenerator<T> {
     }
 }
 
+/// Pick uniformly from a fixed list of values.
+///
+/// Panics if `elements` is empty.
 pub fn sampled_from<T: Clone + Send + Sync>(elements: Vec<T>) -> SampledFromGenerator<T> {
     assert!(
         !elements.is_empty(),
@@ -46,6 +50,7 @@ pub fn sampled_from<T: Clone + Send + Sync>(elements: Vec<T>) -> SampledFromGene
     SampledFromGenerator { elements }
 }
 
+/// Generator that chooses from multiple generators. Created by [`one_of()`] or [`one_of!`](crate::one_of).
 pub struct OneOfGenerator<'a, T> {
     generators: Vec<BoxedGenerator<'a, T>>,
 }
@@ -145,6 +150,7 @@ macro_rules! one_of {
     };
 }
 
+/// Generator that produces `Some(value)` or `None`. Created by [`optional()`].
 pub struct OptionalGenerator<G, T> {
     inner: G,
     _phantom: PhantomData<fn(T)>,
@@ -214,6 +220,7 @@ where
     }
 }
 
+/// Generate `Option<T>` values: either `Some(value)` from the inner generator, or `None`.
 pub fn optional<T, G: Generator<T>>(inner: G) -> OptionalGenerator<G, T> {
     OptionalGenerator {
         inner,

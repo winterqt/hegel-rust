@@ -6,6 +6,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+/// Generator for `Vec<T>`. Created by [`vecs()`].
 pub struct VecGenerator<G, T> {
     pub(crate) elements: G,
     pub(crate) min_size: usize,
@@ -15,16 +16,19 @@ pub struct VecGenerator<G, T> {
 }
 
 impl<G, T> VecGenerator<G, T> {
+    /// Set the minimum number of elements.
     pub fn min_size(mut self, min_size: usize) -> Self {
         self.min_size = min_size;
         self
     }
 
+    /// Set the maximum number of elements.
     pub fn max_size(mut self, max_size: usize) -> Self {
         self.max_size = Some(max_size);
         self
     }
 
+    /// Require all elements to be unique.
     pub fn unique(mut self, unique: bool) -> Self {
         self.unique = unique;
         self
@@ -80,6 +84,7 @@ where
     }
 }
 
+/// Generate vectors with elements from the given generator.
 pub fn vecs<T, G: Generator<T>>(elements: G) -> VecGenerator<G, T> {
     VecGenerator {
         elements,
@@ -90,6 +95,7 @@ pub fn vecs<T, G: Generator<T>>(elements: G) -> VecGenerator<G, T> {
     }
 }
 
+/// Generator for `HashSet<T>`. Created by [`hashsets()`].
 pub struct HashSetGenerator<G, T> {
     elements: G,
     min_size: usize,
@@ -98,11 +104,13 @@ pub struct HashSetGenerator<G, T> {
 }
 
 impl<G, T> HashSetGenerator<G, T> {
+    /// Set the minimum number of elements.
     pub fn min_size(mut self, min_size: usize) -> Self {
         self.min_size = min_size;
         self
     }
 
+    /// Set the maximum number of elements.
     pub fn max_size(mut self, max_size: usize) -> Self {
         self.max_size = Some(max_size);
         self
@@ -167,6 +175,7 @@ where
     }
 }
 
+/// Generate hash sets with elements from the given generator.
 pub fn hashsets<T, G: Generator<T>>(elements: G) -> HashSetGenerator<G, T> {
     HashSetGenerator {
         elements,
@@ -176,6 +185,7 @@ pub fn hashsets<T, G: Generator<T>>(elements: G) -> HashSetGenerator<G, T> {
     }
 }
 
+/// Generator for `HashMap<K, V>`. Created by [`hashmaps()`].
 pub struct HashMapGenerator<K, V, KT, VT> {
     keys: K,
     values: V,
@@ -185,11 +195,13 @@ pub struct HashMapGenerator<K, V, KT, VT> {
 }
 
 impl<K, V, KT, VT> HashMapGenerator<K, V, KT, VT> {
+    /// Set the minimum number of entries.
     pub fn min_size(mut self, min_size: usize) -> Self {
         self.min_size = min_size;
         self
     }
 
+    /// Set the maximum number of entries.
     pub fn max_size(mut self, max_size: usize) -> Self {
         self.max_size = Some(max_size);
         self
@@ -320,11 +332,16 @@ impl<T: serde::Serialize, G: Generator<T>> Generator<Value> for MappedToValue<T,
     }
 }
 
+/// Builder for fixed-key dictionary generators. Created by [`fixed_dicts()`].
+///
+/// Add fields with [`field()`](Self::field), then call [`build()`](Self::build)
+/// to get the generator.
 pub struct FixedDictBuilder<'a> {
     fields: Vec<(String, BoxedGenerator<'a, Value>)>,
 }
 
 impl<'a> FixedDictBuilder<'a> {
+    /// Add a field with a name and generator.
     pub fn field<T, G>(mut self, name: &str, generator: G) -> Self
     where
         G: Generator<T> + Send + Sync + 'a,
@@ -340,6 +357,7 @@ impl<'a> FixedDictBuilder<'a> {
         self
     }
 
+    /// Build the generator.
     pub fn build(self) -> FixedDictGenerator<'a> {
         FixedDictGenerator {
             fields: self.fields,
@@ -347,6 +365,7 @@ impl<'a> FixedDictBuilder<'a> {
     }
 }
 
+/// Generator for CBOR maps with fixed keys. Created via [`FixedDictBuilder`].
 pub struct FixedDictGenerator<'a> {
     fields: Vec<(String, BoxedGenerator<'a, Value>)>,
 }
@@ -416,12 +435,14 @@ pub fn fixed_dicts<'a>() -> FixedDictBuilder<'a> {
     FixedDictBuilder { fields: Vec::new() }
 }
 
+/// Generator for fixed-size arrays `[T; N]`. Created by [`arrays()`].
 pub struct ArrayGenerator<G, T, const N: usize> {
     element: G,
     _phantom: PhantomData<fn() -> T>,
 }
 
 impl<G, T, const N: usize> ArrayGenerator<G, T, N> {
+    #[doc(hidden)]
     pub fn new(element: G) -> Self {
         ArrayGenerator {
             element,
@@ -430,6 +451,7 @@ impl<G, T, const N: usize> ArrayGenerator<G, T, N> {
     }
 }
 
+/// Generate fixed-size arrays `[T; N]` with elements from the given generator.
 pub fn arrays<G: Generator<T> + Send + Sync, T, const N: usize>(
     element: G,
 ) -> ArrayGenerator<G, T, N> {

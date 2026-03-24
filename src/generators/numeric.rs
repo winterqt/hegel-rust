@@ -3,8 +3,11 @@ use crate::cbor_utils::{cbor_map, cbor_serialize, map_insert};
 use ciborium::Value;
 use std::marker::PhantomData;
 
+/// Trait bound for integer types usable with [`integers()`].
 pub trait Integer: Copy + Ord {
+    /// The minimum value of this type.
     const MIN: Self;
+    /// The maximum value of this type.
     const MAX: Self;
 }
 
@@ -21,8 +24,11 @@ impl_integer_type!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
 );
 
+/// Trait bound for float types usable with [`floats()`].
 pub trait Float: Copy + PartialOrd {
+    /// The minimum value of this type.
     const MIN: Self;
+    /// The maximum value of this type.
     const MAX: Self;
 }
 
@@ -36,6 +42,9 @@ impl Float for f64 {
     const MAX: Self = f64::MAX;
 }
 
+/// Generator for integer values. Created by [`integers()`].
+///
+/// Bounds default to the type's full range.
 pub struct IntegerGenerator<T> {
     min: Option<T>,
     max: Option<T>,
@@ -43,11 +52,13 @@ pub struct IntegerGenerator<T> {
 }
 
 impl<T> IntegerGenerator<T> {
+    /// Set the minimum value (inclusive).
     pub fn min_value(mut self, min_value: T) -> Self {
         self.min = Some(min_value);
         self
     }
 
+    /// Set the maximum value (inclusive).
     pub fn max_value(mut self, max_value: T) -> Self {
         self.max = Some(max_value);
         self
@@ -82,6 +93,10 @@ impl<T: Integer + serde::de::DeserializeOwned + serde::Serialize + Send + Sync +
     }
 }
 
+/// Generate integers of type `T`.
+///
+/// Bounds default to the full range of `T`. Use `min_value` and `max_value`
+/// to constrain them.
 pub fn integers<
     T: Integer + serde::de::DeserializeOwned + serde::Serialize + Send + Sync + 'static,
 >() -> IntegerGenerator<T> {
@@ -92,6 +107,10 @@ pub fn integers<
     }
 }
 
+/// Generator for floating-point values. Created by [`floats()`].
+///
+/// By default, may produce NaN and infinity when no bounds are set.
+/// Setting bounds automatically disables these unless re-enabled.
 pub struct FloatGenerator<T> {
     min: Option<T>,
     max: Option<T>,
@@ -102,31 +121,37 @@ pub struct FloatGenerator<T> {
 }
 
 impl<T> FloatGenerator<T> {
+    /// Set the minimum value (inclusive by default).
     pub fn min_value(mut self, min_value: T) -> Self {
         self.min = Some(min_value);
         self
     }
 
+    /// Set the maximum value (inclusive by default).
     pub fn max_value(mut self, max_value: T) -> Self {
         self.max = Some(max_value);
         self
     }
 
+    /// Exclude the minimum value from the range.
     pub fn exclude_min(mut self) -> Self {
         self.exclude_min = true;
         self
     }
 
+    /// Exclude the maximum value from the range.
     pub fn exclude_max(mut self) -> Self {
         self.exclude_max = true;
         self
     }
 
+    /// Whether NaN values are allowed. Cannot be used with bounds.
     pub fn allow_nan(mut self, allow: bool) -> Self {
         self.allow_nan = Some(allow);
         self
     }
 
+    /// Whether infinite values are allowed. Cannot be used with both bounds set.
     pub fn allow_infinity(mut self, allow: bool) -> Self {
         self.allow_infinity = Some(allow);
         self
@@ -199,6 +224,10 @@ impl<T: Float + serde::de::DeserializeOwned + serde::Serialize + Send + Sync + '
     }
 }
 
+/// Generate floating-point values of type `T`.
+///
+/// By default, may produce NaN and infinity. Use `min_value`, `max_value`,
+/// `allow_nan`, and `allow_infinity` to constrain the output.
 pub fn floats<T: Float + serde::de::DeserializeOwned + serde::Serialize + Send + Sync + 'static>()
 -> FloatGenerator<T> {
     FloatGenerator {

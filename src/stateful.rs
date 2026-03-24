@@ -1,3 +1,8 @@
+//! Stateful (model-based) testing support.
+//!
+//! Define a state machine with [`StateMachine`], then test it with
+//! `#[hegel::state_machine]` or by calling [`run()`] directly.
+
 use crate::TestCase;
 use crate::cbor_utils::cbor_map;
 use crate::generators::integers;
@@ -7,12 +12,14 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
+/// A rule that can be applied to the state machine during testing.
 pub struct Rule<M: ?Sized> {
     pub name: String,
     pub apply: fn(&mut M, TestCase),
 }
 
 impl<M> Rule<M> {
+    /// Create a new rule with a name and an apply function.
     pub fn new(name: &str, apply: fn(&mut M, TestCase)) -> Self {
         Rule {
             name: name.to_string(),
@@ -21,12 +28,14 @@ impl<M> Rule<M> {
     }
 }
 
+/// An invariant that is checked after each successful rule application.
 pub struct Invariant<M: ?Sized> {
     pub name: String,
     pub check: fn(&M, TestCase),
 }
 
 impl<M> Invariant<M> {
+    /// Create a new invariant with a name and a check function.
     pub fn new(name: &str, check: fn(&M, TestCase)) -> Self {
         Invariant {
             name: name.to_string(),
@@ -35,6 +44,10 @@ impl<M> Invariant<M> {
     }
 }
 
+/// A pool of named variables for stateful tests.
+///
+/// Variables can be added during rule execution and later drawn or consumed
+/// by other rules, enabling tests that build up and tear down state.
 pub struct Variables<T> {
     pool_id: i128,
     tc: TestCase,
@@ -58,10 +71,12 @@ impl<T> Variables<T> {
         }
     }
 
+    /// Returns true if no variables are in the pool.
     pub fn empty(&self) -> bool {
         self.values.is_empty()
     }
 
+    /// Add a value to the pool.
     pub fn add(&mut self, v: T) {
         let variable_id: i128 = match self
             .tc
@@ -79,12 +94,18 @@ impl<T> Variables<T> {
         self.values.insert(variable_id, v);
     }
 
+    /// Draw a reference to a value from the pool (without removing it).
+    ///
+    /// Calls `assume(false)` if the pool is empty.
     pub fn draw(&self) -> &T {
         self.tc.assume(!self.empty());
         let variable_id = self.pool_generate(false);
         self.values.get(&variable_id).unwrap()
     }
 
+    /// Remove and return a value from the pool.
+    ///
+    /// Calls `assume(false)` if the pool is empty.
     pub fn consume(&mut self) -> T {
         self.tc.assume(!self.empty());
         let variable_id = self.pool_generate(true);
@@ -92,6 +113,7 @@ impl<T> Variables<T> {
     }
 }
 
+/// Create a new variable pool for stateful tests.
 pub fn variables<T>(tc: &TestCase) -> Variables<T> {
     let pool_id = match tc.send_request("new_pool", &cbor_map! {}) {
         Ok(Value::Integer(i)) => i.into(),
@@ -107,8 +129,15 @@ pub fn variables<T>(tc: &TestCase) -> Variables<T> {
     }
 }
 
+/// Trait for defining a stateful test.
+///
+/// Implement this to define the rules (actions) and invariants (assertions)
+/// of your state machine. Use `#[hegel::state_machine]` for a more
+/// ergonomic way to define state machines.
 pub trait StateMachine {
+    /// The rules (actions) that can be applied to this state machine.
     fn rules(&self) -> Vec<Rule<Self>>;
+    /// Invariants checked after each successful rule application.
     fn invariants(&self) -> Vec<Invariant<Self>>;
 }
 
@@ -131,6 +160,7 @@ fn check_invariants(m: &impl StateMachine, tc: &TestCase) {
     }
 }
 
+/// Execute a stateful test by repeatedly applying random rules and checking invariants.
 pub fn run(mut m: impl StateMachine, tc: TestCase) {
     let rules = m.rules();
     if rules.is_empty() {

@@ -2,17 +2,20 @@ use super::{BasicGenerator, Generator, TestCase};
 use crate::cbor_utils::{cbor_array, cbor_map, map_insert};
 use ciborium::Value;
 
+/// Generator for Unicode text strings. Created by [`text()`].
 pub struct TextGenerator {
     min_size: usize,
     max_size: Option<usize>,
 }
 
 impl TextGenerator {
+    /// Set the minimum length in characters.
     pub fn min_size(mut self, min_size: usize) -> Self {
         self.min_size = min_size;
         self
     }
 
+    /// Set the maximum length in characters.
     pub fn max_size(mut self, max_size: usize) -> Self {
         self.max_size = Some(max_size);
         self
@@ -48,6 +51,7 @@ impl Generator<String> for TextGenerator {
     }
 }
 
+/// Generate arbitrary Unicode text strings.
 pub fn text() -> TextGenerator {
     TextGenerator {
         min_size: 0,
@@ -55,6 +59,10 @@ pub fn text() -> TextGenerator {
     }
 }
 
+/// Generator for strings matching a regex pattern. Created by [`from_regex()`].
+///
+/// By default generates strings that contain a match. Use [`fullmatch()`](Self::fullmatch)
+/// to require the entire string to match.
 pub struct RegexGenerator {
     pattern: String,
     fullmatch: bool,
@@ -88,6 +96,7 @@ impl Generator<String> for RegexGenerator {
     }
 }
 
+/// Generate strings matching a regex pattern.
 pub fn from_regex(pattern: &str) -> RegexGenerator {
     RegexGenerator {
         pattern: pattern.to_string(),
@@ -95,17 +104,20 @@ pub fn from_regex(pattern: &str) -> RegexGenerator {
     }
 }
 
+/// Generator for arbitrary byte sequences. Created by [`binary()`].
 pub struct BinaryGenerator {
     min_size: usize,
     max_size: Option<usize>,
 }
 
 impl BinaryGenerator {
+    /// Set the minimum length in bytes.
     pub fn min_size(mut self, min_size: usize) -> Self {
         self.min_size = min_size;
         self
     }
 
+    /// Set the maximum length in bytes.
     pub fn max_size(mut self, max_size: usize) -> Self {
         self.max_size = Some(max_size);
         self
@@ -146,6 +158,7 @@ impl Generator<Vec<u8>> for BinaryGenerator {
     }
 }
 
+/// Generate arbitrary byte sequences (`Vec<u8>`).
 pub fn binary() -> BinaryGenerator {
     BinaryGenerator {
         min_size: 0,
@@ -153,6 +166,7 @@ pub fn binary() -> BinaryGenerator {
     }
 }
 
+/// Generator for email address strings. Created by [`emails()`].
 pub struct EmailGenerator;
 
 impl Generator<String> for EmailGenerator {
@@ -167,10 +181,12 @@ impl Generator<String> for EmailGenerator {
     }
 }
 
+/// Generate email address strings.
 pub fn emails() -> EmailGenerator {
     EmailGenerator
 }
 
+/// Generator for URL strings. Created by [`urls()`].
 pub struct UrlGenerator;
 
 impl Generator<String> for UrlGenerator {
@@ -185,15 +201,18 @@ impl Generator<String> for UrlGenerator {
     }
 }
 
+/// Generate URL strings.
 pub fn urls() -> UrlGenerator {
     UrlGenerator
 }
 
+/// Generator for domain name strings. Created by [`domains()`].
 pub struct DomainGenerator {
     max_length: usize,
 }
 
 impl DomainGenerator {
+    /// Set the maximum length (must be between 4 and 255).
     pub fn max_length(mut self, max_length: usize) -> Self {
         self.max_length = max_length;
         self
@@ -224,6 +243,7 @@ impl Generator<String> for DomainGenerator {
     }
 }
 
+/// Generate domain name strings.
 pub fn domains() -> DomainGenerator {
     DomainGenerator { max_length: 255 }
 }
@@ -234,16 +254,21 @@ pub enum IpVersion {
     V6,
 }
 
+/// Generator for IP address strings. Created by [`ip_addresses()`].
+///
+/// By default generates both IPv4 and IPv6 addresses.
 pub struct IpAddressGenerator {
     version: Option<IpVersion>,
 }
 
 impl IpAddressGenerator {
+    /// Only generate IPv4 addresses.
     pub fn v4(mut self) -> Self {
         self.version = Some(IpVersion::V4);
         self
     }
 
+    /// Only generate IPv6 addresses.
     pub fn v6(mut self) -> Self {
         self.version = Some(IpVersion::V6);
         self
@@ -275,10 +300,12 @@ impl Generator<String> for IpAddressGenerator {
     }
 }
 
+/// Generate IP address strings (IPv4 or IPv6).
 pub fn ip_addresses() -> IpAddressGenerator {
     IpAddressGenerator { version: None }
 }
 
+/// Generator for date strings in YYYY-MM-DD format. Created by [`dates()`].
 pub struct DateGenerator;
 
 impl Generator<String> for DateGenerator {
@@ -293,10 +320,12 @@ impl Generator<String> for DateGenerator {
     }
 }
 
+/// Generate date strings in YYYY-MM-DD format.
 pub fn dates() -> DateGenerator {
     DateGenerator
 }
 
+/// Generator for time strings in HH:MM:SS format. Created by [`times()`].
 pub struct TimeGenerator;
 
 impl Generator<String> for TimeGenerator {
@@ -311,10 +340,12 @@ impl Generator<String> for TimeGenerator {
     }
 }
 
+/// Generate time strings in HH:MM:SS format.
 pub fn times() -> TimeGenerator {
     TimeGenerator
 }
 
+/// Generator for ISO 8601 datetime strings. Created by [`datetimes()`].
 pub struct DateTimeGenerator;
 
 impl Generator<String> for DateTimeGenerator {
@@ -330,6 +361,7 @@ impl Generator<String> for DateTimeGenerator {
     }
 }
 
+/// Generate ISO 8601 datetime strings.
 pub fn datetimes() -> DateTimeGenerator {
     DateTimeGenerator
 }

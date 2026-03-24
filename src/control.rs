@@ -4,6 +4,7 @@ thread_local! {
     static IN_TEST_CONTEXT: Cell<bool> = const { Cell::new(false) };
 }
 
+#[doc(hidden)]
 pub(crate) fn with_test_context<R>(f: impl FnOnce() -> R) -> R {
     IN_TEST_CONTEXT.set(true);
     let result = f();

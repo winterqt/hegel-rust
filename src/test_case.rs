@@ -25,6 +25,7 @@ pub trait __IsTestCase {}
 impl __IsTestCase for TestCase {}
 pub fn __assert_is_test_case<T: __IsTestCase>() {}
 
+/// Error indicating the server ran out of data for this test case.
 #[derive(Debug)]
 pub struct StopTestError;
 impl std::fmt::Display for StopTestError {
@@ -384,6 +385,7 @@ pub struct Collection<'a> {
 }
 
 impl<'a> Collection<'a> {
+    /// Create a new server-managed collection.
     pub fn new(tc: &'a TestCase, name: &str, min_size: usize, max_size: Option<usize>) -> Self {
         Collection {
             tc,
@@ -422,6 +424,7 @@ impl<'a> Collection<'a> {
         self.server_name.as_ref().unwrap()
     }
 
+    /// Ask the server whether to produce another element.
     pub fn more(&mut self) -> bool {
         if self.finished {
             return false;

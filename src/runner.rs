@@ -320,11 +320,16 @@ impl HealthCheck {
     }
 }
 
+/// Controls how much output Hegel produces during test runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verbosity {
+    /// Suppress all output.
     Quiet,
+    /// Default output level.
     Normal,
+    /// Show more detail about the test run.
     Verbose,
+    /// Show protocol-level debug information.
     Debug,
 }
 
@@ -362,24 +367,6 @@ where
     Hegel::new(test_fn).run();
 }
 
-/// Builder for running property-based tests with Hegel.
-///
-/// Use [`Hegel::new`] to create a builder, then call [`run`](Hegel::run) to
-/// execute the tests. Use [`settings`](Hegel::settings) to customize test
-/// behavior via a [`Settings`] instance.
-///
-/// # Example
-///
-/// ```no_run
-/// use hegel::{Settings, Verbosity};
-/// use hegel::generators;
-///
-/// #[hegel::test(settings = Settings::new().test_cases(500).verbosity(Verbosity::Verbose))]
-/// fn test_with_options(tc: hegel::TestCase) {
-///     let n = tc.draw(generators::integers::<i32>());
-///     assert!(n + 0 == n);
-/// }
-/// ```
 fn is_in_ci() -> bool {
     const CI_VARS: &[(&str, Option<&str>)] = &[
         ("CI", None),
@@ -408,6 +395,13 @@ enum Database {
     Path(String),
 }
 
+/// Configuration for a Hegel test run.
+///
+/// Use builder methods to customize, then pass to [`Hegel::settings`] or
+/// the `settings` parameter of `#[hegel::test]`.
+///
+/// In CI environments (detected automatically), the database is disabled
+/// and tests are derandomized by default.
 #[derive(Debug, Clone)]
 pub struct Settings {
     test_cases: u64,
@@ -419,6 +413,7 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Create settings with defaults. Detects CI environments automatically.
     pub fn new() -> Self {
         let in_ci = is_in_ci();
         Self {
@@ -435,26 +430,31 @@ impl Settings {
         }
     }
 
+    /// Set the number of test cases to run (default: 100).
     pub fn test_cases(mut self, n: u64) -> Self {
         self.test_cases = n;
         self
     }
 
+    /// Set the verbosity level.
     pub fn verbosity(mut self, verbosity: Verbosity) -> Self {
         self.verbosity = verbosity;
         self
     }
 
+    /// Set a fixed seed for reproducibility, or `None` for random.
     pub fn seed(mut self, seed: Option<u64>) -> Self {
         self.seed = seed;
         self
     }
 
+    /// When true, use a fixed seed derived from the test name. Enabled by default in CI.
     pub fn derandomize(mut self, derandomize: bool) -> Self {
         self.derandomize = derandomize;
         self
     }
 
+    /// Set the database path for storing failing examples, or `None` to disable.
     pub fn database(mut self, database: Option<String>) -> Self {
         self.database = match database {
             None => Database::Disabled,
@@ -492,6 +492,10 @@ impl Default for Settings {
     }
 }
 
+/// Builder for running property-based tests with Hegel.
+///
+/// Use [`Hegel::new`] to create a builder, then call [`run`](Hegel::run) to
+/// execute the tests.
 pub struct Hegel<F> {
     test_fn: F,
     database_key: Option<String>,
@@ -503,6 +507,7 @@ impl<F> Hegel<F>
 where
     F: FnMut(TestCase),
 {
+    /// Create a new test builder with default settings.
     pub fn new(test_fn: F) -> Self {
         Self {
             test_fn,
@@ -512,6 +517,7 @@ where
         }
     }
 
+    /// Override the default settings.
     pub fn settings(mut self, settings: Settings) -> Self {
         self.settings = settings;
         self

@@ -202,8 +202,8 @@
 //!
 //! # Feature Flags
 //!
-//! - **`rand`**: Enables [`generators::randoms()`] for generating random number generators
-//!   that implement [`rand::RngCore`].
+//! - **`rand`**: Enables `generators::randoms()` for generating random number generators
+//!   that implement `rand::RngCore`.
 //!
 //! # Debugging
 //!
@@ -221,6 +221,7 @@ pub(crate) mod runner;
 pub mod stateful;
 mod test_case;
 
+#[doc(hidden)]
 pub use control::currently_in_test_context;
 pub use generators::Generator;
 pub use test_case::TestCase;
@@ -240,4 +241,6 @@ pub use hegel_macros::DefaultGenerator;
 pub use hegel_macros::composite;
 pub use hegel_macros::state_machine;
 pub use hegel_macros::test;
-pub use runner::{HealthCheck, Hegel, Settings, Verbosity, hegel};
+#[doc(hidden)]
+pub use runner::hegel;
+pub use runner::{HealthCheck, Hegel, Settings, Verbosity};

@@ -3,11 +3,19 @@ use rand::{RngCore, SeedableRng};
 
 use super::{Generator, TestCase, binary, integers};
 
+/// Generator for random number generators. Created by [`randoms()`].
+///
+/// By default, produces a [`HegelRandom::ArtificialRandom`] backed by the
+/// test case data, which allows Hegel to shrink the randomness. Use
+/// [`use_true_random()`](Self::use_true_random) to get a seeded `StdRng` instead.
 pub struct RandomsGenerator {
     use_true_random: bool,
 }
 
 impl RandomsGenerator {
+    /// Use a seeded `StdRng` instead of test-case-backed randomness.
+    ///
+    /// True random values are not shrinkable.
     pub fn use_true_random(mut self) -> Self {
         self.use_true_random = true;
         self
@@ -25,9 +33,14 @@ impl Generator<HegelRandom> for RandomsGenerator {
     }
 }
 
+/// A random number generator produced by [`randoms()`].
+///
+/// Implements [`RngCore`] from the `rand` crate.
 #[derive(Debug)]
 pub enum HegelRandom {
+    /// Backed by test case data. Shrinkable.
     ArtificialRandom(TestCase),
+    /// Backed by a seeded `StdRng`. Not shrinkable.
     TrueRandom(Box<StdRng>),
 }
 

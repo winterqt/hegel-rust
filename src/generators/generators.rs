@@ -7,6 +7,7 @@ use std::sync::Arc;
 ///
 /// The lifetime `'a` ties the BasicGenerator to the generator that created it.
 /// `T: 'a` is required because the parse closure returns `T`.
+#[doc(hidden)]
 pub struct BasicGenerator<'a, T> {
     schema: Value,
     parse: Box<dyn Fn(Value) -> T + Send + Sync + 'a>,
@@ -61,6 +62,9 @@ pub trait Generator<T>: Send + Sync {
     }
 
     /// Transform generated values using a function.
+    ///
+    /// When the source generator has a schema (i.e. `as_basic()` returns `Some`),
+    /// the schema is preserved and the function is composed into the parse step.
     fn map<U, F>(self, f: F) -> Mapped<T, U, F, Self>
     where
         Self: Sized,
@@ -73,7 +77,7 @@ pub trait Generator<T>: Send + Sync {
         }
     }
 
-    /// Generate a value, then use it to create another generator.
+    /// Generate a value, then use it to choose or configure another generator.
     fn flat_map<U, G, F>(self, f: F) -> FlatMapped<T, U, G, F, Self>
     where
         Self: Sized,
@@ -87,6 +91,9 @@ pub trait Generator<T>: Send + Sync {
         }
     }
 
+    /// Only keep generated values that satisfy the predicate.
+    ///
+    /// Retries up to 3 times, then calls `assume(false)` to reject the test case.
     fn filter<F>(self, predicate: F) -> Filtered<T, F, Self>
     where
         Self: Sized,
@@ -120,6 +127,7 @@ impl<T, G: Generator<T>> Generator<T> for &G {
     }
 }
 
+/// Result of [`Generator::map`]. Preserves the schema when possible.
 pub struct Mapped<T, U, F, G> {
     source: G,
     f: Arc<F>,
@@ -149,6 +157,7 @@ where
     }
 }
 
+/// Result of [`Generator::flat_map`].
 pub struct FlatMapped<T, U, G2, F, G1> {
     source: G1,
     f: F,
@@ -171,6 +180,7 @@ where
     }
 }
 
+/// Result of [`Generator::filter`].
 pub struct Filtered<T, F, G> {
     source: G,
     predicate: F,

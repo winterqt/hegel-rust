@@ -1,6 +1,8 @@
 use super::{Generator, TestCase};
 use std::marker::PhantomData;
 
+/// A generator built from imperative code. Created by [`compose!`](crate::compose).
+#[doc(hidden)]
 pub struct ComposedGenerator<T, F> {
     f: F,
     _phantom: PhantomData<fn() -> T>,
@@ -10,6 +12,7 @@ impl<T, F> ComposedGenerator<T, F>
 where
     F: Fn(TestCase) -> T,
 {
+    /// Create a composed generator from a closure that receives a [`TestCase`].
     pub fn new(f: F) -> Self {
         ComposedGenerator {
             f,
@@ -28,6 +31,7 @@ where
 }
 
 /// Compile-time FNV-1a hash of a byte slice, producing a u64 label.
+#[doc(hidden)]
 pub const fn fnv1a_hash(bytes: &[u8]) -> u64 {
     const FNV_OFFSET: u64 = 0xcbf29ce484222325;
     const FNV_PRIME: u64 = 0x100000001b3;

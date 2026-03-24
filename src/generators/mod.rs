@@ -1,3 +1,11 @@
+//! Generators for producing test data.
+//!
+//! Each generator is created via a factory function (e.g. [`integers()`], [`text()`])
+//! that returns a builder struct. Most builders have methods for constraining the
+//! output (e.g. `min_value`, `max_size`). All builders implement [`Generator<T>`],
+//! which provides combinators like [`map`](Generator::map), [`filter`](Generator::filter),
+//! and [`flat_map`](Generator::flat_map).
+
 mod collections;
 mod combinators;
 mod compose;
@@ -14,20 +22,33 @@ mod random;
 
 pub(crate) mod value;
 
-// public api
+#[doc(hidden)]
 pub use crate::test_case::{
     Collection, StopTestError, TestCase, deserialize_value, generate_from_schema, generate_raw,
     labels,
 };
-pub use collections::{HashMapGenerator, arrays, fixed_dicts, hashmaps, hashsets, vecs};
-pub use combinators::{one_of, optional, sampled_from};
-pub use compose::{ComposedGenerator, fnv1a_hash};
+
+// public api
+pub use collections::{
+    ArrayGenerator, FixedDictBuilder, FixedDictGenerator, HashMapGenerator, HashSetGenerator,
+    VecGenerator, arrays, fixed_dicts, hashmaps, hashsets, vecs,
+};
+pub use combinators::{
+    OneOfGenerator, OptionalGenerator, SampledFromGenerator, one_of, optional, sampled_from,
+};
+#[doc(hidden)]
+pub use compose::fnv1a_hash;
+pub use compose::ComposedGenerator;
 pub use default::{DefaultGenerator, default};
-pub use generators::{BasicGenerator, BoxedGenerator, Filtered, FlatMapped, Generator, Mapped};
-pub use misc::{booleans, just, none, unit};
-pub use numeric::{Float, Integer, floats, integers};
+#[doc(hidden)]
+pub use generators::BasicGenerator;
+pub use generators::{BoxedGenerator, Filtered, FlatMapped, Generator, Mapped};
+pub use misc::{BoolGenerator, JustGenerator, NoneGenerator, booleans, just, none, unit};
+pub use numeric::{Float, FloatGenerator, Integer, IntegerGenerator, floats, integers};
 pub use strings::{
-    binary, dates, datetimes, domains, emails, from_regex, ip_addresses, text, times, urls,
+    BinaryGenerator, DateGenerator, DateTimeGenerator, DomainGenerator, EmailGenerator,
+    IpAddressGenerator, RegexGenerator, TextGenerator, TimeGenerator, UrlGenerator, binary, dates,
+    datetimes, domains, emails, from_regex, ip_addresses, text, times, urls,
 };
 pub use tuples::{
     tuples2, tuples3, tuples4, tuples5, tuples6, tuples7, tuples8, tuples9, tuples10, tuples11,
@@ -37,9 +58,3 @@ pub use tuples::{
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
 pub use random::{HegelRandom, RandomsGenerator, randoms};
-
-pub(crate) use collections::VecGenerator;
-pub(crate) use combinators::OptionalGenerator;
-pub(crate) use misc::BoolGenerator;
-pub(crate) use numeric::{FloatGenerator, IntegerGenerator};
-pub(crate) use strings::TextGenerator;

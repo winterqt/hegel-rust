@@ -84,7 +84,8 @@ pub fn derive_generator(input: TokenStream) -> TokenStream {
 /// generate values. The `#[test]` attribute is added automatically and must not be
 /// present on the function.
 ///
-/// Optionally accepts settings as `key = value` pairs:
+/// Optionally accepts settings as `key = value` pairs corresponding to
+/// methods on [`Settings`](hegel::Settings):
 ///
 /// ```ignore
 /// #[hegel::test]
@@ -104,12 +105,91 @@ pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
     hegel_test::expand_test(attr.into(), item.into()).into()
 }
 
+/// Define a composite generator from a function.
+///
+/// The first parameter must be `tc: TestCase` and is passed automatically
+/// when the generator is drawn. Any additional parameters become parameters
+/// of the returned factory function. The function must have an explicit
+/// return type.
+///
+/// ```ignore
+/// use hegel::generators;
+///
+/// #[hegel::composite]
+/// fn sorted_vec(tc: hegel::TestCase, min_len: usize) -> Vec<i32> {
+///     let mut v: Vec<i32> = tc.draw(generators::vecs(generators::integers()).min_size(min_len));
+///     v.sort();
+///     v
+/// }
+///
+/// #[hegel::test]
+/// fn test_sorted(tc: hegel::TestCase) {
+///     let v = tc.draw(sorted_vec(3));
+///     assert!(v.len() >= 3);
+///     assert!(v.windows(2).all(|w| w[0] <= w[1]));
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn composite(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemFn);
     composite::expand_composite(input).into()
 }
 
+/// Derive a [`StateMachine`](hegel::stateful::StateMachine) implementation from an `impl` block.
+///
+/// Methods annotated with `#[rule]` become rules (actions applied to the state machine)
+/// and methods annotated with `#[invariant]` become invariants (checked after each
+/// successful rule). Rules take `&mut self` and a `TestCase`; invariants take `&self`
+/// and a `TestCase`.
+///
+/// ```ignore
+/// use hegel::TestCase;
+/// use hegel::generators::integers;
+///
+/// struct IntegerStack {
+///     stack: Vec<i32>,
+/// }
+///
+/// #[hegel::state_machine]
+/// impl IntegerStack {
+///     #[rule]
+///     fn push(&mut self, tc: TestCase) {
+///         let element = tc.draw(integers::<i32>());
+///         self.stack.push(element);
+///     }
+///
+///     #[rule]
+///     fn pop(&mut self, _: TestCase) {
+///         self.stack.pop();
+///     }
+///
+///     #[rule]
+///     fn pop_push(&mut self, tc: TestCase) {
+///         let element = tc.draw(integers::<i32>());
+///         let initial = self.stack.clone();
+///         self.stack.push(element);
+///         let popped = self.stack.pop().unwrap();
+///         assert_eq!(popped, element);
+///         assert_eq!(self.stack, initial);
+///     }
+///
+///     #[rule]
+///     fn push_pop(&mut self, tc: TestCase) {
+///         let initial = self.stack.clone();
+///         let element = self.stack.pop();
+///         tc.assume(element.is_some());
+///         let element = element.unwrap();
+///         self.stack.push(element);
+///         assert_eq!(self.stack, initial);
+///     }
+/// }
+///
+/// #[hegel::test]
+/// fn test_integer_stack(tc: TestCase) {
+///     let stack = IntegerStack { stack: Vec::new() };
+///     hegel::stateful::run(stack, tc);
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn state_machine(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = parse_macro_input!(item as ItemImpl);
