@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.17 - 2026-03-24
+
+Add comprehensive API documentation, and hide various bits that shouldn't appear in the public docs.
+
 ## 0.1.16 - 2026-03-24
 
 Better error message for when `uv` is not found on the PATH.
