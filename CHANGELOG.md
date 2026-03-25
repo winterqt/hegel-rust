@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.4 - 2026-03-25
+
+This release moves over to using the new stdio version of hegel-core.
+This should not be a user visible change.
+
+## 0.2.3 - 2026-03-25
+
+This release changes the way the client manages the server to run a single persistent process for the whole test run.
+
+This should improve the performance of running many hegel tests, and also hopefully fixes an intermittent hang we would sometimes see when many hegel tests were run concurrently.
+
+## 0.2.2 - 2026-03-25
+
+This is a no-op release that fixes some publishing problems and has no user-visible changes.
+
 ## 0.2.1 - 2026-03-24
 
 This patch improves the documentation for stateful testing.

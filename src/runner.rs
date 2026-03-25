@@ -8,16 +8,13 @@ use crate::cbor_utils::{as_bool, as_text, as_u64, cbor_map, map_get};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
-use std::os::unix::net::UnixStream;
 use std::panic::{self, AssertUnwindSafe, catch_unwind};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Once};
-use std::time::Duration;
-use tempfile::TempDir;
 
 const SUPPORTED_PROTOCOL_VERSIONS: (f64, f64) = (0.6, 0.7);
-const HEGEL_SERVER_VERSION: &str = "0.2.2";
+const HEGEL_SERVER_VERSION: &str = "0.2.3";
 const HEGEL_SERVER_COMMAND_ENV: &str = "HEGEL_SERVER_COMMAND";
 const HEGEL_SERVER_DIR: &str = ".hegel";
 const UV_NOT_FOUND_MESSAGE: &str = "\
@@ -37,8 +34,99 @@ testing functionality across languages. There are two ways for Hegel to get hege
 See https://hegel.dev/reference/installation for more details.";
 static HEGEL_SERVER_COMMAND: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 static SERVER_LOG_FILE: std::sync::OnceLock<Mutex<File>> = std::sync::OnceLock::new();
+static SESSION: std::sync::OnceLock<HegelSession> = std::sync::OnceLock::new();
 
 static PANIC_HOOK_INIT: Once = Once::new();
+
+/// A persistent connection to the hegel server subprocess.
+///
+/// Created once per process on first use. The subprocess and connection
+/// are reused across all `Hegel::run()` calls. The Python server supports
+/// multiple sequential `run_test` commands over a single connection.
+struct HegelSession {
+    connection: Arc<Connection>,
+    /// The control channel is shared across threads, so it's behind a Mutex
+    /// because Channel is not thread-safe. The lock is only held for the
+    /// brief run_test send/receive; test execution runs concurrently on
+    /// per-test channels.
+    control: Mutex<Channel>,
+}
+
+impl HegelSession {
+    fn get() -> &'static HegelSession {
+        SESSION.get_or_init(|| {
+            init_panic_hook();
+            HegelSession::init()
+        })
+    }
+
+    fn init() -> HegelSession {
+        let hegel_binary_path = find_hegel();
+        let mut cmd = Command::new(&hegel_binary_path);
+        cmd.arg("--stdio").arg("--verbosity").arg("normal");
+
+        cmd.env("PYTHONUNBUFFERED", "1");
+        let log_file = server_log_file();
+        cmd.stdin(Stdio::piped());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::from(log_file));
+
+        #[allow(clippy::expect_fun_call)]
+        let mut child = cmd
+            .spawn()
+            .expect(format!("Failed to spawn hegel at path {}", hegel_binary_path).as_str());
+
+        let child_stdin = child.stdin.take().expect("Failed to take child stdin");
+        let child_stdout = child.stdout.take().expect("Failed to take child stdout");
+
+        let connection = Connection::new(Box::new(child_stdout), Box::new(child_stdin));
+        let mut control = connection.control_channel();
+
+        // Handshake
+        let req_id = control
+            .send_request(HANDSHAKE_STRING.to_vec())
+            .expect("Failed to send version negotiation");
+        let response = control
+            .receive_reply(req_id)
+            .expect("Failed to receive version response");
+
+        let decoded = String::from_utf8_lossy(&response);
+        let server_version = match decoded.strip_prefix("Hegel/") {
+            Some(v) => v,
+            None => {
+                let _ = child.kill();
+                panic!("Bad handshake response: {decoded:?}");
+            }
+        };
+        let version: f64 = server_version.parse().unwrap_or_else(|_| {
+            let _ = child.kill();
+            panic!("Bad version number: {server_version}");
+        });
+
+        let (lo, hi) = SUPPORTED_PROTOCOL_VERSIONS;
+        if !(lo <= version && version <= hi) {
+            let _ = child.kill();
+            panic!(
+                "hegel-rust supports protocol versions {lo} through {hi}, but \
+                 the connected server is using protocol version {version}. Upgrading \
+                 hegel-rust or downgrading hegel-core might help."
+            );
+        }
+
+        // Monitor thread: detects server crash. The pipe close from
+        // the child exiting will unblock any pending reads.
+        let conn_for_monitor = Arc::clone(&connection);
+        std::thread::spawn(move || {
+            let _ = child.wait();
+            conn_for_monitor.mark_server_exited();
+        });
+
+        HegelSession {
+            connection,
+            control: Mutex::new(control),
+        }
+    }
+}
 
 thread_local! {
     /// (thread_name, thread_id, location, backtrace)
@@ -333,16 +421,7 @@ pub enum Verbosity {
     Debug,
 }
 
-impl Verbosity {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Verbosity::Quiet => "quiet",
-            Verbosity::Normal => "normal",
-            Verbosity::Verbose => "verbose",
-            Verbosity::Debug => "debug",
-        }
-    }
-}
+impl Verbosity {}
 
 // internal use only
 #[doc(hidden)]
@@ -521,135 +600,17 @@ where
 
     /// Run the property-based tests.
     ///
-    /// This function:
-    /// 1. Creates a Unix socket server
-    /// 2. Spawns the hegel server as a subprocess
-    /// 3. Accepts the connection from the hegel server
-    /// 4. Handles test case events from the hegel server
-    /// 5. Runs the test function for each test case
-    /// 6. Reports results back to the hegel server
-    /// 7. Panics if any test case fails
+    /// Connects to the shared hegel server (spawning it on first use),
+    /// sends a `run_test` command, processes test cases, and reports results.
+    /// Panics if any test case fails.
     pub fn run(self) {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let socket_path = temp_dir.path().join("hegel.sock");
-
-        let hegel_binary_path = find_hegel();
-        let mut cmd = Command::new(&hegel_binary_path);
-        cmd.arg(&socket_path)
-            .arg("--verbosity")
-            .arg(self.settings.verbosity.as_str());
-
-        cmd.env("PYTHONUNBUFFERED", "1");
-        let log_file = server_log_file();
-        let log_file2 = log_file
-            .try_clone()
-            .expect("Failed to clone log file handle");
-        cmd.stdout(Stdio::from(log_file));
-        cmd.stderr(Stdio::from(log_file2));
-
-        if self.settings.verbosity == Verbosity::Debug {
-            eprintln!("Starting hegel server: {:?}", cmd);
-        }
-
-        #[allow(clippy::expect_fun_call)]
-        let mut child = cmd
-            .spawn()
-            .expect(format!("Failed to spawn hegel at path {}", hegel_binary_path).as_str());
-
-        init_panic_hook();
-
-        let mut attempts = 0;
-        // wait for socket initialization
-        let stream = loop {
-            // Check if server has already exited
-            if let Ok(Some(status)) = child.try_wait() {
-                panic!(
-                    "The hegel server process exited immediately ({}). \
-                     See .hegel/server.log for diagnostic information.",
-                    status
-                );
-            }
-
-            if socket_path.exists() {
-                match UnixStream::connect(&socket_path) {
-                    Ok(stream) => break stream,
-                    Err(_) if attempts < 50 => {
-                        std::thread::sleep(Duration::from_millis(100));
-                        attempts += 1;
-                        continue;
-                    }
-                    Err(e) => {
-                        let _ = child.kill();
-                        panic!("Failed to connect to hegel server socket: {}", e);
-                    }
-                }
-            }
-            if attempts >= 50 {
-                let _ = child.kill();
-                panic!("Timeout waiting for hegel server to create socket");
-            }
-            std::thread::sleep(Duration::from_millis(100));
-            attempts += 1;
-        };
-
-        // set a read timeout so we don't hang if the server crashes
-        stream.set_read_timeout(Some(Duration::from_secs(120))).ok();
-
-        // Clone stream before Connection takes ownership, so the monitor
-        // thread can shut it down if the server exits unexpectedly.
-        let monitor_stream = stream
-            .try_clone()
-            .expect("Failed to clone stream for server monitoring");
-
-        let connection = Connection::new(stream);
-        let control = connection.control_channel();
-        let req_id = control
-            .send_request(HANDSHAKE_STRING.to_vec())
-            .expect("Failed to send version negotiation");
-        let response = control
-            .receive_reply(req_id)
-            .expect("Failed to receive version response");
-
-        let decoded = String::from_utf8_lossy(&response);
-        let server_version = match decoded.strip_prefix("Hegel/") {
-            Some(v) => v,
-            None => {
-                let _ = child.kill();
-                panic!("Bad handshake response: {decoded:?}");
-            }
-        };
-        let version: f64 = server_version.parse().unwrap_or_else(|_| {
-            let _ = child.kill();
-            panic!("Bad version number: {server_version}");
-        });
-
-        let (lo, hi) = SUPPORTED_PROTOCOL_VERSIONS;
-        if !(lo <= version && version <= hi) {
-            let _ = child.kill();
-            panic!(
-                "hegel-rust supports protocol versions {lo} through {hi}, but \
-                 the connected server is using protocol version {version}. Upgrading \
-                 hegel-rust or downgrading hegel-core might help."
-            );
-        }
-
-        if self.settings.verbosity == Verbosity::Debug {
-            eprintln!("Version negotiation complete");
-        }
-
-        // Monitor the server process. If it exits unexpectedly, shut down the
-        // socket so blocking reads fail immediately instead of waiting for timeout.
-        let conn_for_monitor = Arc::clone(&connection);
-        let monitor_handle = std::thread::spawn(move || {
-            let _ = child.wait();
-            conn_for_monitor.mark_server_exited();
-            let _ = monitor_stream.shutdown(std::net::Shutdown::Both);
-        });
+        let session = HegelSession::get();
+        let connection = &session.connection;
 
         let mut test_fn = self.test_fn;
         let verbosity = self.settings.verbosity;
         let got_interesting = Arc::new(AtomicBool::new(false));
-        let test_channel = connection.new_channel();
+        let mut test_channel = connection.new_channel();
 
         let suppress_names: Vec<Value> = self
             .settings
@@ -689,14 +650,20 @@ where
             }
         }
 
-        let run_test_id = control
-            .send_request(cbor_encode(&run_test_msg))
-            .expect("Failed to send run_test");
+        // The control channel is behind a Mutex because Channel requires &mut self.
+        // This only serializes the brief run_test send/receive — actual test
+        // execution happens on per-test channels without holding this lock.
+        {
+            let mut control = session.control.lock().unwrap();
+            let run_test_id = control
+                .send_request(cbor_encode(&run_test_msg))
+                .expect("Failed to send run_test");
 
-        let run_test_response = control
-            .receive_reply(run_test_id)
-            .expect("Failed to receive run_test response");
-        let _run_test_result: Value = cbor_decode(&run_test_response);
+            let run_test_response = control
+                .receive_reply(run_test_id)
+                .expect("Failed to receive run_test response");
+            let _run_test_result: Value = cbor_decode(&run_test_response);
+        }
 
         if verbosity == Verbosity::Debug {
             eprintln!("run_test response received");
@@ -732,7 +699,7 @@ where
                         .expect("Failed to ack test_case");
 
                     run_test_case(
-                        &connection,
+                        connection,
                         test_case_channel,
                         &mut test_fn,
                         false,
@@ -760,31 +727,16 @@ where
 
         // Check for server-side errors before processing results
         if let Some(error_msg) = map_get(&result_data, "error").and_then(as_text) {
-            drop(test_channel);
-            drop(control);
-            let _ = connection.close();
-            drop(connection);
-            let _ = monitor_handle.join();
             panic!("Server error: {}", error_msg);
         }
 
         // Check for health check failure before processing results
         if let Some(failure_msg) = map_get(&result_data, "health_check_failure").and_then(as_text) {
-            drop(test_channel);
-            drop(control);
-            let _ = connection.close();
-            drop(connection);
-            let _ = monitor_handle.join();
             panic!("Health check failure:\n{}", failure_msg);
         }
 
         // Check for flaky test detection
         if let Some(flaky_msg) = map_get(&result_data, "flaky").and_then(as_text) {
-            drop(test_channel);
-            drop(control);
-            let _ = connection.close();
-            drop(connection);
-            let _ = monitor_handle.join();
             panic!("Flaky test detected: {}", flaky_msg);
         }
 
@@ -797,6 +749,7 @@ where
         }
 
         // Process final replay test cases (one per interesting example)
+        let mut final_result: Option<TestCaseResult> = None;
         for _ in 0..n_interesting {
             let (event_id, event_payload) = test_channel
                 .receive_request()
@@ -816,14 +769,18 @@ where
                 .write_reply(event_id, cbor_encode(&ack_null))
                 .expect("Failed to ack final test_case");
 
-            run_test_case(
-                &connection,
+            let tc_result = run_test_case(
+                connection,
                 test_case_channel,
                 &mut test_fn,
                 true,
                 verbosity,
                 &got_interesting,
             );
+
+            if matches!(&tc_result, TestCaseResult::Interesting { .. }) {
+                final_result = Some(tc_result);
+            }
 
             if connection.server_has_exited() {
                 panic!("{}", SERVER_CRASHED_MESSAGE);
@@ -834,20 +791,9 @@ where
             .and_then(as_bool)
             .unwrap_or(true);
 
-        // clean up so the server can exit gracefully
-        drop(test_channel);
-        drop(control);
-        let _ = connection.close();
-        drop(connection);
-
-        // Wait for the server process to exit via the monitor thread
-        let _ = monitor_handle.join();
-
         let test_failed = !passed || got_interesting.load(Ordering::SeqCst);
 
         if is_running_in_antithesis() {
-            // if we're running inside of antithesis, but the user hasn't opted in
-            // to the antithesis feature, loudly inform them.
             #[cfg(not(feature = "antithesis"))]
             panic!(
                 "When Hegel is run inside of Antithesis, it requires the `antithesis` feature. \
@@ -861,12 +807,21 @@ where
         }
 
         if test_failed {
-            panic!("Property test failed");
+            let msg = match &final_result {
+                Some(TestCaseResult::Interesting { panic_message }) => panic_message.as_str(),
+                _ => "unknown",
+            };
+            panic!("Property test failed: {}", msg);
         }
     }
 }
 
-/// Run a single test case.
+enum TestCaseResult {
+    Valid,
+    Invalid,
+    Interesting { panic_message: String },
+}
+
 fn run_test_case<F: FnMut(TestCase)>(
     connection: &Arc<Connection>,
     test_channel: Channel,
@@ -874,19 +829,19 @@ fn run_test_case<F: FnMut(TestCase)>(
     is_final: bool,
     verbosity: Verbosity,
     got_interesting: &Arc<AtomicBool>,
-) {
+) -> TestCaseResult {
     // Create TestCase. The test function gets a clone (cheap Rc bump),
     // so we retain access to the same underlying TestCaseData after the test runs.
     let tc = TestCase::new(Arc::clone(connection), test_channel, verbosity, is_final);
 
     let result = with_test_context(|| catch_unwind(AssertUnwindSafe(|| test_fn(tc.clone()))));
 
-    let (status, origin) = match &result {
-        Ok(()) => ("VALID".to_string(), None),
+    let (tc_result, origin) = match &result {
+        Ok(()) => (TestCaseResult::Valid, None),
         Err(e) => {
             let msg = panic_message(e);
             if msg == ASSUME_FAIL_STRING || msg == STOP_TEST_STRING {
-                ("INVALID".to_string(), None)
+                (TestCaseResult::Invalid, None)
             } else {
                 got_interesting.store(true, Ordering::SeqCst);
 
@@ -923,7 +878,10 @@ fn run_test_case<F: FnMut(TestCase)>(
                 }
 
                 let origin = format!("Panic at {}", location);
-                ("INTERESTING".to_string(), Some(origin))
+                (
+                    TestCaseResult::Interesting { panic_message: msg },
+                    Some(origin),
+                )
             }
         }
     };
@@ -931,17 +889,24 @@ fn run_test_case<F: FnMut(TestCase)>(
     // Send mark_complete using the same channel that generators used.
     // Skip if test was aborted (StopTest) - server already closed the channel.
     if !tc.test_aborted() {
+        let status = match &tc_result {
+            TestCaseResult::Valid => "VALID",
+            TestCaseResult::Invalid => "INVALID",
+            TestCaseResult::Interesting { .. } => "INTERESTING",
+        };
         let origin_value = match &origin {
             Some(s) => Value::Text(s.clone()),
             None => Value::Null,
         };
         let mark_complete = cbor_map! {
             "command" => "mark_complete",
-            "status" => status.as_str(),
+            "status" => status,
             "origin" => origin_value
         };
         tc.send_mark_complete(&mark_complete);
     }
+
+    tc_result
 }
 
 /// Extract a message from a panic payload.
