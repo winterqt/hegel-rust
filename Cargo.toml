@@ -26,7 +26,10 @@ categories = ["development-tools::testing"]
 [lib]
 name = "hegel"
 
-# Required for rustdoc to know that we're okay with building examples.
+# By default, rustdoc does not build examples even with -Zrustdoc-scrape-examples,
+# because doing so would pull in dev-dependencies. Enabling doc-scrape-examples
+# for one example is enough to lift this restriction. See
+# https://doc.rust-lang.org/cargo/reference/unstable.html#scrape-examples
 [[example]]
 name = "stack"
 doc-scrape-examples = true
