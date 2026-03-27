@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-03-27
+
+Improve generation and shrinking of `generators::hashsets` and `generators::hashmaps`.
+
 ## 0.3.0 - 2026-03-27
 
 This release changes `self` in `#[invariant]` from an immutable reference to a mutable reference:
