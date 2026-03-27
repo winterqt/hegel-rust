@@ -287,10 +287,10 @@ where
 /// # Example
 ///
 /// ```ignore
-/// use hegel::generators::{hashmaps, integers, text};
+/// use hegel::generators as gs;
 /// use std::collections::HashMap;
 ///
-/// let map: HashMap<i32, String> = tc.draw(hashmaps(integers(), text()));
+/// let map: HashMap<i32, String> = tc.draw(gs::hashmaps(gs::integers(), gs::text()));
 /// ```
 pub fn hashmaps<KT, VT, K: Generator<KT>, V: Generator<VT>>(
     keys: K,
@@ -417,11 +417,11 @@ impl Generator<Value> for FixedDictGenerator<'_> {
 /// # Example
 ///
 /// ```no_run
-/// use hegel::generators::{self, Generator};
+/// use hegel::generators::{self as gs, Generator};
 ///
-/// let generator = generators::fixed_dicts()
-///     .field("name", generators::text())
-///     .field("age", generators::integers::<u32>())
+/// let generator = gs::fixed_dicts()
+///     .field("name", gs::text())
+///     .field("age", gs::integers::<u32>())
 ///     .build();
 /// ```
 pub fn fixed_dicts<'a>() -> FixedDictBuilder<'a> {
